@@ -113,7 +113,10 @@ def _check_args(parser):
 
 
 def main():
-    print("### GLM NeuroIm ###")
+    
+    print(("#######################################\n"
+           "############# GLM NeuroIm #############\n"
+           "#######################################\n"))
 
     parser = _setup_parser()
     args = _check_args(parser)
@@ -150,13 +153,15 @@ def main():
     # Hypothesis Testing
     for i in range(contrasts.shape[0]):
         contrast = contrasts[i, :]
+        contrast_output_path = os.path.join(args.output, f"contrast_{i}")
+        os.makedirs(contrast_output_path, exist_ok=True)
 
         # Compute Standard Error and t Statistic
         SE = np.sqrt(MSE * (contrast @ np.linalg.inv(X.T @ X) @ contrast.T))
         T = (contrast @ betas) / SE
         T_im = masker.inverse_transform(T)
         # Save the t-Statistic image
-        T_im_path = os.path.join(args.output, f"Tstat_contrast_{i}.nii.gz")
+        T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
         T_im.to_filename(T_im_path)
 
         # Uncorrected p-values
@@ -169,10 +174,9 @@ def main():
         pval_im_neg = masker.inverse_transform(pval_array_neg)
 
         # Save the p-value image
-        pos_pval_im_path = os.path.join(args.output, f"uncorr_pvals_positive_contrast_{i}.nii.gz")
+        pos_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_positive.nii.gz")
         pval_im_pos.to_filename(pos_pval_im_path)
-
-        neg_pval_im_path = os.path.join(args.output, f"uncorr_pvals_negative_contrast_{i}.nii.gz")
+        neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
         pval_im_neg.to_filename(neg_pval_im_path)
 
         # Z-Stat
@@ -180,9 +184,16 @@ def main():
         Z = np.where(T > 0, Z, -Z)
         Z_array = Z * mask_2d
         Z_im = masker.inverse_transform(Z_array)
+
         # Save the Z-statistic image
-        Z_im_path = os.path.join(args.output, f"Zstat_contrast_{i}.nii.gz")
+        Z_im_path = os.path.join(contrast_output_path, "Zstat_contrast.nii.gz")
         Z_im.to_filename(Z_im_path)
+
+        # Effect size (Cohen's d)
+        # TODO: Implement Cohen's d calculation, depends on the contrast.
+        # s = np.sqrt(((n1-1)*s1**2 + (n2-1)*s2**2) / (n1 + n2 - 2))
+        # d = (mean1 - mean2) / s
+        
 
 
 if __name__ == "__main__":
