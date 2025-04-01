@@ -1,5 +1,5 @@
 [project]
-name = "glm-neuroim"
+name = "compneuro-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -13,8 +13,8 @@ dependencies = [
 
 
 [project.scripts]
-fit_glm = "glm_neuroim.fit_glm:main"
-cluster_correction_mc = "glm_neuroim.cluster_correction_mc:main"
+fit_glm = "compneuro_tools.fit_glm:main"
+cluster_correction_mc = "compneuro_tools.cluster_correction_mc:main"
 
 
 [tool.uv]
