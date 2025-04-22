@@ -1,4 +1,5 @@
 import os
+import sys
 
 from argparse import ArgumentParser
 
@@ -60,7 +61,7 @@ def _setup_parser() -> ArgumentParser:
         required=False,
         help="Indicates if the input DataFrame has a header. Default is True.",)
     parser.add_argument(
-        "--match_sizes",
+        "--no_size_match",
         action="store_true",
         required=False,
         help="If True, match the sizes of the two groups. Default is False.",
@@ -185,9 +186,12 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
         age_diffs = majority_df["age_diff"]
         
         # If using a caliper, skip if no matches within caliper
-        if caliper is not None and age_diffs.min() > caliper:
-            print(f"### Skipped participant with age difference higher than caliper ({age_diffs.min():.3f} > {caliper})")
-            continue
+        if (caliper is not None) and (age_diffs.min() > caliper):
+            print(f"### No matches within caliper ({caliper}) for age {minority_age:.3f}"
+                  f"({age_diffs.min():.3f} > {caliper}). Cannot continue matching.")
+            broken = True
+            break
+
         elif age_diffs.min() > minority_df[matching_column].std():
             print(f"### Adding participant with age difference higher than minority "
                   f"group age standard deviation ({age_diffs.min():.3f} > {minority_df[matching_column].std():.3f})")
@@ -279,13 +283,13 @@ def main():
         group1=args.group1,
         group2=args.group2,
         matching_column=args.matching_column,
-        match_sizes=args.match_sizes,
+        match_sizes=(not args.no_size_match),
         pvalue_threshold=args.pvalue_threshold,
         caliper=args.caliper,
     )
 
     # Save the matched DataFrame
-    out_name = (f"{"matched_" + os.path.basename(args.dataframe_path).split(".")[0]}_{args.group1}_"
+    out_name = (f"matched_{os.path.basename(args.dataframe_path).split('.')[0]}_{args.group1}_"
                 f"{args.group2}_by_{args.matching_column}")
     output_path = os.path.join(args.output, out_name + TERMINATIONS[args.separator])
     
