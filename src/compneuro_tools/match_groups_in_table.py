@@ -5,10 +5,14 @@ from argparse import ArgumentParser
 import numpy as np
 import polars as pl
 
+from scipy.stats import ttest_ind
+
+
 TERMINATIONS = {" ": ".txt",
                 ",": ".csv",
                 "\t": ".tsv",
                 ";": ".csv"}
+
 
 def _setup_parser() -> ArgumentParser:
     parser = ArgumentParser(description="Subsample majority group by matching with minority group, according to a column.")
@@ -55,6 +59,19 @@ def _setup_parser() -> ArgumentParser:
         action="store_true",
         required=False,
         help="Indicates if the input DataFrame has a header. Default is True.",)
+    parser.add_argument(
+        "--match_sizes",
+        action="store_true",
+        required=False,
+        help="If True, match the sizes of the two groups. Default is False.",
+    )
+    parser.add_argument(
+        "--pvalue_threshold",
+        type=float,
+        required=False,
+        default=0.05,
+        help="P-value threshold for statistical significance. Default is 0.05.",
+    )
 
     parser.add_argument(
         "--output",
@@ -102,6 +119,7 @@ def _check_args(args) -> None:
 
     # Make matching column numeric, cast to pl.Float32
     args.dataframe = args.dataframe.with_columns(pl.col(args.matching_column).cast(pl.Float32).alias(args.matching_column))
+
     return args
 
 
@@ -109,14 +127,16 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
                                     group1: str,
                                     group2: str,
                                     matching_column: str,
+                                    match_sizes: bool = False,
+                                    pvalue_threshold: float = 0.05,
                                     caliper: float = None) -> pl.DataFrame:
     """
-    Subsample subjects from the majority group by finding age matches from the minority group.
+    Subsample participants from the majority group by finding age matches from the minority group.
     
     Parameters:
     -----------
     df : polars.DataFrame
-        DataFrame containing subject data
+        DataFrame containing participant data
     group1 : str
         Column name for the first group (e.g., "g1_SN")
     group2 : str
@@ -129,10 +149,10 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
     Returns:
     --------
     matched_df : polars.DataFrame
-        DataFrame containing subjects from both groups after matching
+        DataFrame containing participants from both groups after matching
     """
 
-    # Extract subjects from each group
+    # Extract participants from each group
     group1_df = df.filter(pl.col(group1) == "1")
     group2_df = df.filter(pl.col(group2) == "1")
     
@@ -147,54 +167,103 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
         minority_name, majority_name = group2, group1
     
     # Lists to store matched indices
-    minority_matched_indices = []
-    majority_matched_indices = []
+    majority_matched_rows = []
     
     # Get ages as numpy arrays for faster processing
     minority_ages = minority_df[matching_column].to_numpy()
-    majority_ages = majority_df[matching_column].to_numpy()
-    majority_indices = np.arange(len(majority_ages))
 
     mean_diff = np.abs(minority_df[matching_column].mean() - majority_df[matching_column].mean())
     print(f"Original sizes -> {minority_name} (minority): {len(minority_df)}, {majority_name} (majority): {len(majority_df)}"
-          f"\nMean absolute difference before matching: {mean_diff:.3f}\n")
+          f"\nMean absolute difference in \"{matching_column}\" before matching: {mean_diff:.3f}\n")
     
-    # For each subject in minority group, find closest match in majority group
-    for i, minority_age in enumerate(minority_ages):
-        age_diffs = np.abs(majority_ages - minority_age)
+    # For each participant in minority group, find closest match in majority group
+    broken = False
+    for minority_age in minority_ages:
+        majority_df = majority_df.with_columns(
+            (majority_df[matching_column] - minority_age).abs().alias("age_diff")
+        )
+        age_diffs = majority_df["age_diff"]
         
         # If using a caliper, skip if no matches within caliper
-        if caliper is not None and np.min(age_diffs) > caliper:
+        if caliper is not None and age_diffs.min() > caliper:
+            print(f"### Skipped participant with age difference higher than caliper ({age_diffs.min():.3f} > {caliper})")
             continue
-        elif np.min(age_diffs) > np.std(minority_ages):
-            print(f"Adding subject with age difference higher than minority "
-                  f"group age standard deviation ({np.min(age_diffs):.3f} > {np.std(minority_ages):.3f})")
+        elif age_diffs.min() > minority_df[matching_column].std():
+            print(f"### Adding participant with age difference higher than minority "
+                  f"group age standard deviation ({age_diffs.min():.3f} > {minority_df[matching_column].std():.3f})")
 
         # Find the index of the best match
-        best_match_idx = np.argmin(age_diffs)
+        best_match_idx = majority_df["age_diff"].arg_min()
+
+        majority_matched_rows.append(majority_df[best_match_idx])
+        majority_matched_age = pl.concat(majority_matched_rows, how="vertical")[matching_column]
         
-        minority_matched_indices.append(i)
-        majority_matched_indices.append(majority_indices[best_match_idx])
+        # Remove the matched participant to prevent reusing
+        majority_df = majority_df.drop("index").with_row_index().filter(pl.col("index") != best_match_idx)
         
-        # Remove the matched subject to prevent reusing
-        majority_ages = np.delete(majority_ages, best_match_idx)
-        majority_indices = np.delete(majority_indices, best_match_idx)
-        
-        # Stop if we've used all subjects from majority group (unlikely)
-        if (len(majority_ages) == 0) or (len(majority_ages) == len(minority_ages)):
+        # Stop when all participants in the majority group are matched, or when there is a statistically significant difference in the ages
+        t_test = ttest_ind(minority_ages, majority_matched_age, equal_var=False)
+        pval = t_test.pvalue
+        if np.isnan(pval):
+            pval = 1.0
+
+        # First we keep adding participants until reaching the minority group size
+        # Then we check if the p-value is significant. Keep adding participants until the p-value is significant
+        if (pval < pvalue_threshold) and (len(majority_matched_rows) == len(minority_ages)):
+            print(f"Stopping matching due to significant difference in ages (p = {t_test.pvalue:.3f})")
+            majority_matched_rows = majority_matched_rows[:-1]
+            broken = True
             break
-    
-    # Get the matched subjects from each group
-    majority_matched = majority_df.filter(pl.col("index").is_in(majority_matched_indices))
+
+    # If match_sizes is False, keep adding participants until the p-value indicates a statistically significant difference
+    if (not match_sizes) and (not broken):
+        # Compute the mean of the minority group
+        minority_mean = minority_df[matching_column].mean()
+        # Compute the age differences
+        majority_df = majority_df.with_columns(
+            (majority_df[matching_column] - minority_mean).abs().alias("age_diff")
+        )
+        age_diffs = majority_df["age_diff"]
+
+        # While p-value not significant and still participants in majority group or caliper not reached, keep adding participants
+        while ((pval >= pvalue_threshold) and len(majority_df) > 0) or ((age_diffs).min() < caliper):
+            # Find the index of the best match and add it to the matched indices
+            best_match_idx = majority_df["age_diff"].arg_min()
+            majority_matched_rows.append(majority_df[best_match_idx])
+            majority_matched_age = pl.concat(majority_matched_rows, how="vertical")[matching_column]
+
+            # Compute the new p-value
+            t_test = ttest_ind(minority_ages, majority_matched_age, equal_var=False)
+            pval = t_test.pvalue
+
+            if pval < pvalue_threshold:
+                print(f"Stopping matching due to significant difference in ages (p = {pval:.3f})")
+                # Remove the last index because it introduces a significant difference
+                majority_matched_rows = majority_matched_rows[:-1]
+                break
+
+            # Remove the matched participant to prevent reusing
+            majority_df = majority_df.drop("index").with_row_index().filter(pl.col("index") != best_match_idx)
+            majority_df = majority_df.with_columns(
+            (majority_df[matching_column] - minority_mean).abs().alias("age_diff")
+            )
+            age_diffs = majority_df["age_diff"]
+
+
+    # Get the matched participants from each group
+    majority_matched = pl.concat(majority_matched_rows, how="vertical").drop("age_diff")
+    majority_matched_age = majority_matched[matching_column]
     
     # Combine the matched groups
     matched_df = pl.concat([minority_df, majority_matched])
     
     # Parameter means after matching
+    pval = ttest_ind(minority_ages, majority_matched_age, equal_var=False).pvalue
     mean_diff = np.abs(majority_matched[matching_column].mean() - minority_df[matching_column].mean())
-    print(f"\nAfter matching -> {minority_name}: {len(minority_matched_indices)}, "
-          f"{majority_name} (subsampled): {len(majority_matched_indices)} "
-          f"\nMean absolute difference after matching: {mean_diff:.3f}")
+    print(f"\nAfter matching -> {minority_name} (minority): {len(minority_df)}, "
+          f"{majority_name} (subsampled majority): {len(majority_matched_rows)} "
+          f"\nMean absolute difference in \"{matching_column}\" after matching: {mean_diff:.3f}"
+          f"\np-value: {pval:.3f}\n")
 
     return matched_df.drop("index")
 
@@ -210,6 +279,8 @@ def main():
         group1=args.group1,
         group2=args.group2,
         matching_column=args.matching_column,
+        match_sizes=args.match_sizes,
+        pvalue_threshold=args.pvalue_threshold,
         caliper=args.caliper,
     )
 
