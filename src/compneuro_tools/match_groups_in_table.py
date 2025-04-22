@@ -273,6 +273,7 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
 
 
 def main():
+    print("----------------------------------------------------------")
     parser = _setup_parser()
     args = parser.parse_args()
     args = _check_args(args)
@@ -296,6 +297,8 @@ def main():
     matched_df.write_csv(output_path, separator=args.separator,
                          include_header=args.has_header)
     print(f"Matched DataFrame saved to {output_path}")
+    print("----------------------------------------------------------")
+    
 
 
 if __name__ == "__main__":
