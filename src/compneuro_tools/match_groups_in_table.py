@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import numpy as np
 import polars as pl
 
-from scipy.stats import ttest_ind
+from scipy.stats import ttest_ind, chisquare
 
 
 TERMINATIONS = {" ": ".txt",
@@ -75,6 +75,13 @@ def _setup_parser() -> ArgumentParser:
     )
 
     parser.add_argument(
+        "--categorical",
+        action="store_true",
+        required=False,
+        help="Indicates if the matching column is categorical. Default is False (numerical).",
+    )
+
+    parser.add_argument(
         "--output",
         type=str,
         required=False,
@@ -124,15 +131,13 @@ def _check_args(args) -> None:
     return args
 
 
-def subsample_majority_by_age_match(df: pl.DataFrame,
+def subsample_majority_by_categorical_match(df: pl.DataFrame, #TODO: implement this function
                                     group1: str,
-                                    group2: str,
                                     matching_column: str,
                                     match_sizes: bool = False,
-                                    pvalue_threshold: float = 0.05,
-                                    caliper: float = None) -> pl.DataFrame:
+                                    pvalue_threshold: float = 0.05,) -> pl.DataFrame:
     """
-    Subsample participants from the majority group by finding age matches from the minority group.
+    In a given group, subsample the majority category until it matches the minority category
     
     Parameters:
     -----------
@@ -144,6 +149,80 @@ def subsample_majority_by_age_match(df: pl.DataFrame,
         Column name for the second group (e.g., "g2_PV")
     matching_column : str
         Column name to use for matching
+    match_sizes : bool, optional
+        If True, match the sizes of the two groups. Default is False.
+    pvalue_threshold : float, optional
+        P-value threshold for statistical significance (default is 0.05)
+        
+    Returns:
+    --------
+    matched_df : polars.DataFrame
+        DataFrame containing participants from both groups after matching
+    """
+    pass
+    # # Extract participants from each group
+    # group1_df = df.filter(pl.col(group1) == "1")
+    
+    # # Determine which is minority and majority group
+    # # Find the category with the maximum count in the majority group
+    # max_category = majority_counts[majority_counts == majority_counts.max()]
+
+    # # Remove rows from the majority group until the sizes are equal
+    # while pval >= pvalue_threshold:
+    #     # Get the counts of each category in the matching column
+    #     minority_counts = minority_df[matching_column].value_counts()
+    #     majority_counts = majority_df[matching_column].value_counts()
+
+        
+
+    #     # Remove rows from the majority group that match the maximum category
+    #     majority_df = majority_df.filter(pl.col(matching_column) != max_category.index[0])
+
+    #     # Check if the sizes are equal
+    #     if len(minority_df) == len(majority_df):
+    #         break
+
+    # mean_diff = np.abs(minority_df[matching_column].mean() - majority_df[matching_column].mean())
+    # print(f"Original sizes -> {minority_name} (minority): {len(minority_df)}, {majority_name} (majority): {len(majority_df)}"
+    #       f"\nMean absolute difference in \"{matching_column}\" before matching: {mean_diff:.3f}\n")
+
+
+
+    # pval = chisquare(minority_df[matching_column].value_counts().to_numpy(),
+    #                  majority_df[matching_column].value_counts().to_numpy()).pvalue
+    # print(f"\nAfter matching -> {minority_name} (minority): {len(minority_df)}, "
+    #       f"{majority_name} (subsampled majority): {len(majority_matched_rows)} "
+    #       f"\nMean absolute difference in \"{matching_column}\" after matching: {mean_diff:.3f}"
+    #       f"\np-value: {pval:.3f}\n")
+
+    # return matched_df.drop("index")
+
+
+def subsample_majority_by_numerical_match(df: pl.DataFrame,
+                                    group1: str,
+                                    group2: str,
+                                    matching_column: str,
+                                    match_sizes: bool = False,
+                                    pvalue_threshold: float = 0.05,
+                                    caliper: float = None) -> pl.DataFrame:
+    """
+    Subsample participants from the majority group by finding specific NUMERICAL column
+    matches in the minority group.
+    
+    Parameters:
+    -----------
+    df : polars.DataFrame
+        DataFrame containing participant data
+    group1 : str
+        Column name for the first group (e.g., "g1_SN")
+    group2 : str
+        Column name for the second group (e.g., "g2_PV")
+    matching_column : str
+        Column name to use for matching
+    match_sizes : bool, optional
+        If True, match the sizes of the two groups. Default is False.
+    pvalue_threshold : float, optional
+        P-value threshold for statistical significance (default is 0.05)
     caliper : float, optional
         Maximum age difference allowed for matching (in years)
         
@@ -279,15 +358,25 @@ def main():
     args = _check_args(args)
 
     # Subsample the majority group
-    matched_df = subsample_majority_by_age_match(
-        args.dataframe,
-        group1=args.group1,
-        group2=args.group2,
-        matching_column=args.matching_column,
-        match_sizes=(not args.no_size_match),
-        pvalue_threshold=args.pvalue_threshold,
-        caliper=args.caliper,
-    )
+    if args.categorical:
+        matched_df = subsample_majority_by_categorical_match(
+            args.dataframe,
+            group1=args.group1,
+            group2=args.group2,
+            matching_column=args.matching_column,
+            match_sizes=(not args.no_size_match),
+            pvalue_threshold=args.pvalue_threshold,
+        )
+    else:
+        matched_df = subsample_majority_by_numerical_match(
+            args.dataframe,
+            group1=args.group1,
+            group2=args.group2,
+            matching_column=args.matching_column,
+            match_sizes=(not args.no_size_match),
+            pvalue_threshold=args.pvalue_threshold,
+            caliper=args.caliper,
+        )
 
     # Save the matched DataFrame
     out_name = (f"matched_{os.path.basename(args.dataframe_path).split('.')[0]}_{args.group1}_"
