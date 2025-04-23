@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "ipykernel>=6.29.5",
+    "matplotlib>=3.10.1",
     "nilearn>=0.11.1",
     "polars>=1.26.0",
     "scipy",
@@ -17,6 +18,7 @@ dependencies = [
 fit_glm = "compneuro_tools.fit_glm:main"
 cluster_correction_mc = "compneuro_tools.cluster_correction_mc:main"
 match_groups_in_table = "compneuro_tools.match_groups_in_table:main"
+atlas_overlap = "compneuro_tools.atlas_overlap:main"
 
 
 [tool.uv]
