@@ -13,6 +13,9 @@ wheels/
 test/
 data/
 
+# Tries
+sandbox/
+
 # VsCode
 .vscode/
 .history/
