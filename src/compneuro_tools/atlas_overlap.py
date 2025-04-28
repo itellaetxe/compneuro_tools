@@ -17,6 +17,8 @@ ATLAS_DICT = {"HarvardOxfordCortical": {"function": datasets.fetch_atlas_harvard
               "JuelichHistological": {"function": datasets.fetch_atlas_juelich,
                                       "name": "maxprob-thr0-1mm",
                                       "dir": None},}
+            #   "Schaefer200": {"function": datasets.fetch_atlas_schaefer_2018, # TODO: Add Schaefer support
+            #                   "name": "Schaefer2018_200Parcels_7Networks",}
 ATLAS_NAMES = list(ATLAS_DICT.keys())
 
 
@@ -133,10 +135,10 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas: np.ndarray) -> pl.Dat
     region_voxel_overlap = []
     region_voxel_number = []
     region_overlap_percentage = []
-    for i in range(len(atlas.labels[1:])):
+    for i in range(1, len(atlas.labels[1:]) + 1):
         # Create mask for this region
         region_mask = (atlas_data == i)
-        
+
         # Count voxels in this region that are also in the binary mask
         overlap_count = np.sum(mask_data & region_mask)
         total_region_voxels = np.sum(region_mask)
