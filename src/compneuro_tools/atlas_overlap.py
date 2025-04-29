@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 
 from nilearn import image, datasets
+from compneuro_tools.atlases import fetch_xtract
 
 
 ATLAS_DICT = {"HarvardOxfordCortical": {"function": datasets.fetch_atlas_harvard_oxford,
@@ -16,9 +17,10 @@ ATLAS_DICT = {"HarvardOxfordCortical": {"function": datasets.fetch_atlas_harvard
                                            "dir": None},
               "JuelichHistological": {"function": datasets.fetch_atlas_juelich,
                                       "name": "maxprob-thr0-1mm",
-                                      "dir": None},}
-            #   "Schaefer200": {"function": datasets.fetch_atlas_schaefer_2018, # TODO: Add Schaefer support
-            #                   "name": "Schaefer2018_200Parcels_7Networks",}
+                                      "dir": None},
+              "xtract": {"function": fetch_xtract,
+                          "name": None,
+                          "dir": None}}
 ATLAS_NAMES = list(ATLAS_DICT.keys())
 
 
@@ -105,7 +107,7 @@ def _check_args_and_env(args) -> None:
     return args
 
 
-def compute_overlap_with_atlas(mask_im: np.ndarray, atlas: np.ndarray) -> pl.DataFrame:
+def compute_overlap_with_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
     """Compute the overlap percentage of a binary mask with an atlas.
 
     Parameters
@@ -123,7 +125,7 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas: np.ndarray) -> pl.Dat
         and overlap percentage for each region.
     """
     # Resample the atlas to the input mask
-    atlas_data = image.resample_to_img(atlas.maps,
+    atlas_data = image.resample_to_img(atlas["maps"],
                                        mask_im,
                                        interpolation="nearest",
                                        copy_header=True,
@@ -135,7 +137,7 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas: np.ndarray) -> pl.Dat
     region_voxel_overlap = []
     region_voxel_number = []
     region_overlap_percentage = []
-    for i in range(1, len(atlas.labels[1:]) + 1):
+    for i in range(1, len(atlas["labels"][1:]) + 1):
         # Create mask for this region
         region_mask = (atlas_data == i)
 
@@ -154,7 +156,7 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas: np.ndarray) -> pl.Dat
         region_overlap_percentage.append(overlap_percentage)
 
     region_counts = {
-        "region": atlas.labels[1:],  # Skip the first label (Background)
+        "region": atlas["labels"][1:],  # Skip the first label (Background)
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
