@@ -1,12 +1,11 @@
 import os
-import sys
 
 from argparse import ArgumentParser
 
 import numpy as np
 import polars as pl
 
-from scipy.stats import ttest_ind, chisquare
+from scipy.stats import ttest_ind
 
 
 TERMINATIONS = {" ": ".txt",

@@ -9,18 +9,18 @@ from nilearn import image, datasets
 from compneuro_tools.atlases import fetch_xtract
 
 
-ATLAS_DICT = {"HarvardOxfordCortical": {"function": datasets.fetch_atlas_harvard_oxford,
-                                        "name" :"cort-maxprob-thr0-1mm",
-                                        "dir": None},
+ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harvard_oxford,
+                                           "name" :"cort-maxprob-thr0-1mm",
+                                           "dir": None},
               "HarvardOxfordSubcortical": {"function": datasets.fetch_atlas_harvard_oxford,
                                            "name": "sub-maxprob-thr0-1mm",
                                            "dir": None},
-              "JuelichHistological": {"function": datasets.fetch_atlas_juelich,
-                                      "name": "maxprob-thr0-1mm",
-                                      "dir": None},
-              "xtract": {"function": fetch_xtract,
-                          "name": None,
-                          "dir": None}}
+              "JuelichHistological":      {"function": datasets.fetch_atlas_juelich,
+                                           "name": "maxprob-thr0-1mm",
+                                           "dir": None},
+              "xtract":                   {"function": fetch_xtract,
+                                            "name": None,
+                                            "dir": None}}
 ATLAS_NAMES = list(ATLAS_DICT.keys())
 
 
