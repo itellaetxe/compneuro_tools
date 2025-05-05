@@ -111,25 +111,23 @@ def _check_args(parser):
     return args
 
 
-def main():
-    
-    print(("#######################################\n"
-           "############# Fitting GLM #############\n"
-           "#######################################\n"))
-
-    parser = _setup_parser()
-    args = _check_args(parser)
+def fit_glm(mask_img,
+            input_img,
+            design_matrix,
+            contrast_matrix):
+    # Initialize the results
+    results = {}
 
     # Initialize the masker to convert the images to 2D (reliable way, instead of numpy reshapes)
-    masker = NiftiMasker(mask_img=args.mask_img, standardize=False).fit()
+    masker = NiftiMasker(mask_img=mask_img, standardize=False).fit()
 
     # Covert the mask and input image to 2D using the masker
-    mask_2d = masker.transform(args.mask_img)
-    y = masker.transform(args.input_img) *  mask_2d
+    mask_2d = masker.transform(mask_img)
+    y = masker.transform(input_img) *  mask_2d
 
     # Load the design and contrast matrices
-    X = args.design_matrix
-    contrasts = args.contrast_matrix
+    X = design_matrix
+    contrasts = contrast_matrix
 
     # Mean center the desired variables
     # TODO
@@ -144,24 +142,18 @@ def main():
 
     MSE = np.sum(np.square(residuals), axis=0) / df
 
-    # Save residuals
+    # Compute the residuals
     residuals_im = masker.inverse_transform(residuals)
-    residuals_path = os.path.join(args.output, "residuals.nii.gz")
-    residuals_im.to_filename(residuals_path)
 
     # Hypothesis Testing
     for i in range(contrasts.shape[0]):
+        results[f"contrast_{i}"] = {}
         contrast = contrasts[i, :]
-        contrast_output_path = os.path.join(args.output, f"contrast_{i}")
-        os.makedirs(contrast_output_path, exist_ok=True)
 
         # Compute Standard Error and t Statistic
         SE = np.sqrt(MSE * (contrast @ np.linalg.inv(X.T @ X) @ contrast.T))
         T = (contrast @ betas) / SE
         T_im = masker.inverse_transform(T)
-        # Save the t-Statistic image
-        T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
-        T_im.to_filename(T_im_path)
 
         # Uncorrected p-values
         pvals = 2 * (1 - t.cdf(np.abs(T), df))
@@ -172,22 +164,68 @@ def main():
         pval_im_pos = masker.inverse_transform(pval_array_pos)
         pval_im_neg = masker.inverse_transform(pval_array_neg)
 
-        # Save the p-value image
-        pos_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_positive.nii.gz")
-        pval_im_pos.to_filename(pos_pval_im_path)
-        neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
-        pval_im_neg.to_filename(neg_pval_im_path)
-
         # Z-Stat
         Z = norm.ppf(1 - (pvals/2))
         Z = np.where(T > 0, Z, -Z)
         Z_array = Z * mask_2d
         Z_im = masker.inverse_transform(Z_array)
 
+        # Betas
+        beta_array = betas * mask_2d
+        betas_im = masker.inverse_transform(beta_array)
+
+        # Put the results into the dictionary
+        results[f"contrast_{i}"]["Zstat"] = Z_im
+        results[f"contrast_{i}"]["pvals_positive"] = pval_im_pos
+        results[f"contrast_{i}"]["pvals_negative"] = pval_im_neg
+        results[f"contrast_{i}"]["Tstat"] = T_im
+        results[f"contrast_{i}"]["residuals"] = residuals_im
+        results[f"contrast_{i}"]["betas"] = betas_im
+
+    return results
+
+
+def main():
+    
+    print(("#######################################\n"
+           "############# Fitting GLM #############\n"
+           "#######################################\n"))
+
+    parser = _setup_parser()
+    args = _check_args(parser)
+
+    results = fit_glm(args.mask_img,
+                      args.input_img,
+                      args.design_matrix,
+                      args.contrast_matrix)
+
+    # Save the results
+    for contrast_name, result in results.items():
+        # Save the residuals image
+        residuals_path = os.path.join(args.output, "residuals.nii.gz")
+        result["residuals"].to_filename(residuals_path)
+
+        # Set the contrast output path
+        contrast_output_path = os.path.join(args.output, contrast_name)
+        os.makedirs(contrast_output_path, exist_ok=True)
+
         # Save the Z-statistic image
         Z_im_path = os.path.join(contrast_output_path, "Zstat_contrast.nii.gz")
-        Z_im.to_filename(Z_im_path)
+        result["Zstat"].to_filename(Z_im_path)
 
+        # Save the p-value images
+        pos_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_positive.nii.gz")
+        result["pvals_positive"].to_filename(pos_pval_im_path)
+        neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
+        result["pvals_negative"].to_filename(neg_pval_im_path)
+
+        # Save the t-Statistic image
+        T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
+        result["Tstat"].to_filename(T_im_path)
+
+        # Save the betas image
+        betas_im_path = os.path.join(contrast_output_path, "betas.nii.gz")
+        result["betas"].to_filename(betas_im_path)
         # Effect size (Cohen's d)
         # TODO: Implement Cohen's d calculation, depends on the contrast.
         # s = np.sqrt(((n1-1)*s1**2 + (n2-1)*s2**2) / (n1 + n2 - 2))
