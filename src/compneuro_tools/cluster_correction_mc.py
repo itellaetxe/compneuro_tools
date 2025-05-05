@@ -131,6 +131,7 @@ def _check_fsl():
     return fsl_bin
 
 
+# Many of the commands in this script were kindly provided by @ajimenezmarin, thanks Antonio c:
 def main():
     parser = _setup_parser()
     args = _check_args(parser)

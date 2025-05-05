@@ -7,9 +7,8 @@ from nilearn import image
 from nilearn.maskers import NiftiMasker
 from scipy.stats import t, norm
 
-# Python version of Ibai's GLM fitting script
 
-
+# Python version of Ibai Diez's GLM fitting script. Thanks Ibai for your MATLAB code c:
 def _setup_parser():
     parser = ArgumentParser(description="Fit GLM to image data")
     parser.add_argument(
