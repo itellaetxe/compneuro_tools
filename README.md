@@ -1,7 +1,10 @@
 # CompNeuro Tools
-<div align="center">
-  <img src="./resources/logo_lettering.png" height="300">
-</div>
+
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./resources/logo_lettering_dark_mode.png">
+    <source media="(prefers-color-scheme: light)" srcset="./resources/logo_lettering_light_mode.png">
+    <img alt="CompNeuro Tools Logo" src="./resources/logo_lettering_dark_mode.png">
+</picture>
 
 [![PyPI version](https://badge.fury.io/py/compneuro-tools.svg?icon=si%3Apython)](https://badge.fury.io/py/compneuro-tools)
 My personal collection of simple yet useful ***"brain gardening tools"*** for my PhD works in [CompNeuroBilbaoLab](https://www.compneurobilbao.eus)!
