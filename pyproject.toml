@@ -1,7 +1,7 @@
 [project]
 name = "compneuro-tools"
-version = "0.1.1"
-description = "Add your description here"
+version = "0.1.2"
+description = "A collection of simple yet useful \"brain gardening tools\" for my PhD works in CompNeuroBilbaoLab."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -12,7 +12,24 @@ dependencies = [
     "ruff>=0.11.8",
     "scipy",
 ]
+authors = [
+    {name = "Iñigo Tellaetxe Elorriaga", email = "inigotellaetxe@gmail.com"}
+]
+maintainers = [
+    {name = "Iñigo Tellaetxe Elorriaga", email = "inigotellaetxe@gmail.com"}
+]
+license = "Apache-2.0"
+keywords = ["brain", "neuroscience", "computational neuroimaging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
 
+]
 
 [project.scripts]
 fit_glm = "compneuro_tools.fit_glm:main"

@@ -1,12 +1,50 @@
 # CompNeuro Tools
-My personal collection of tools for computational neuroscience. My PhD stuff
+<div align="center">
+  <img src="./resources/logo_lettering.png" height="300">
+</div>
 
-# Installation (Recommended)
-I don't even consider building stuff for Windows anymore. Just use WSL2 if you're using Windows (I do).
+[![PyPI version](https://badge.fury.io/py/compneuro-tools.svg?icon=si%3Apython)](https://badge.fury.io/py/compneuro-tools)
+My personal collection of simple yet useful ***"brain gardening tools"*** for my PhD works in [CompNeuroBilbaoLab](https://www.compneurobilbao.eus)!
 
-1. Clone this repo
-2. Install [uv](https://astral.sh/blog/uv)
+## Requirements
+Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it works fine.
+
+- Python 3.11 or higher
+- FSL 6.0 or higher
+- AFNI 25.0.09 'Severus Alexander' or higher. I recommend putting it in an `apptainer` image as it is a bit tricky to install in some systems. You can get it running this command, (assuming you have `apptainer` installed):
+  ```bash
+  apptainer build AFNI.sif docker://afni/afni_make_build:AFNI_25.0.09
+  ```
+  Then set you environment variable `$AFNI_IMAGE_PATH` to the path of the image.
+
+## Tools
+- `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format. This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own python version c:). The list of output files:
+  - `residuals.nii.gz` --> Residuals of the GLM fit
+  - `Tstat.nii.gz` --> T-statistic of the GLM fit
+  - `Zstat.nii.gz` --> Z-statistic of the GLM fit
+  - `uncorr_pvals_negative.nii.gz` --> Uncorrected p-values of the GLM fit (negative)
+  - `uncorr_pvals_positive.nii.gz` --> Uncorrected p-values of the GLM fit (positive)
+
+- `cluster_correction_mc` --> Correct the clusters in your statistical maps using Monte Carlo simulations. *I use it for correcting clusters in my statistical maps after running `fit_glm`*. Uses AFNI for:
+  1. estimating the smoothness of your residuals.
+  2. running the Monte Carlo simulations based on the smoothness to estimate the critical cluster sizes according to a set of p-values.
+  3. correcting the clusters in your statistical maps using the critical cluster sizes.
+
+- `match_groups_in_table` --> If you have two groups (in the same dataframe) and want to match them based on a continuous variable. *I use it for age matching*. It makes an initial match taking participants from the majority group until it arrives to the number of participants in the minority group. Then, it keeps adding the closest participants from the majority group and making statistical tests until it arrives to statistical significance. It returns a dataframe with the matched participants.
+
+- `atlas_overlap` --> 
+
+
+## Installation (User)
+You can install the package using pip, as it is available on PyPI:
+```bash
+pip install compneuro-tools
+```
+
+## Installation (Developer)
+1. Clone this repo.
+2. Install **[uv](https://astral.sh/blog/uv)** (see how to install it in the [uv documentation](https://docs.astral.sh/uv/#installation))
 3. Create a virtual environment in the repo folder with uv: `uv venv .venv` (minimum python version is 3.11)
 4. Activate the virtual environment: `source .venv/bin/activate`
-5. Install the dependencies: `uv sync`
+5. Install the dependencies: `uv sync` (or if you prefer `uv pip install -e <path_to_this_repo>`)
 6. Done :)
