@@ -1,12 +1,10 @@
 # CompNeuro Tools
-
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./resources/logo_lettering_dark_mode.png">
-    <source media="(prefers-color-scheme: light)" srcset="./resources/logo_lettering_light_mode.png">
-    <img alt="CompNeuro Tools Logo" src="./resources/logo_lettering_dark_mode.png">
-</picture>
-
 [![PyPI version](https://badge.fury.io/py/compneuro-tools.svg?icon=si%3Apython)](https://badge.fury.io/py/compneuro-tools)
+
+<div align="center">
+    <img src="./resources/logo_lettering_dark_mode.png" height=200>
+</div>
+
 My personal collection of simple yet useful ***"brain gardening tools"*** for my PhD works in [CompNeuroBilbaoLab](https://www.compneurobilbao.eus)!
 
 ## Requirements
@@ -21,6 +19,8 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
   Then set you environment variable `$AFNI_IMAGE_PATH` to the path of the image.
 
 ## Tools
+**Each CLI tool has a `--help` option that will show you how to use it. You can also check the code for more details.**
+
 - `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format. This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own python version c:). The list of output files:
   - `residuals.nii.gz` --> Residuals of the GLM fit
   - `Tstat.nii.gz` --> T-statistic of the GLM fit
@@ -35,8 +35,7 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
 
 - `match_groups_in_table` --> If you have two groups (in the same dataframe) and want to match them based on a continuous variable. *I use it for age matching*. It makes an initial match taking participants from the majority group until it arrives to the number of participants in the minority group. Then, it keeps adding the closest participants from the majority group and making statistical tests until it arrives to statistical significance. It returns a dataframe with the matched participants.
 
-- `atlas_overlap` --> 
-
+- `atlas_overlap` --> Informs about the overlap between a binary mask and a given atlas. *I use it for checking the overlap between my statistically significant cluster masks and atlases of interest*. It returns a dataframe with the overlap between the binary mask and each region in the atlas in percentage and in number of voxels.
 
 ## Installation (User)
 You can install the package using pip, as it is available on PyPI:
