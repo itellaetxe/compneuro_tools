@@ -21,21 +21,22 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
 ## Tools
 **Each CLI tool has a `--help` option that will show you how to use it. You can also check the code for more details.**
 
-- `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format. This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own python version c:). The list of output files:
-  - `residuals.nii.gz` --> Residuals of the GLM fit
-  - `Tstat.nii.gz` --> T-statistic of the GLM fit
-  - `Zstat.nii.gz` --> Z-statistic of the GLM fit
-  - `uncorr_pvals_negative.nii.gz` --> Uncorrected p-values of the GLM fit (negative)
-  - `uncorr_pvals_positive.nii.gz` --> Uncorrected p-values of the GLM fit (positive)
+- `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format. This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own Python version c:). The list of output files, for each contrast:
+  - `residuals.nii.gz` --> Residuals of the specific contrast
+  - `Tstat.nii.gz` --> T-statistic of the specific contrast
+  - `Zstat.nii.gz` --> Z-statistic of the specific contrast
+  - `uncorr_pvals_negative.nii.gz` --> Uncorrected p-values of the specific contrast (negative)
+  - `uncorr_pvals_positive.nii.gz` --> Uncorrected p-values of the specific contrast (positive)
 
 - `cluster_correction_mc` --> Correct the clusters in your statistical maps using Monte Carlo simulations. *I use it for correcting clusters in my statistical maps after running `fit_glm`*. Uses AFNI for:
   1. estimating the smoothness of your residuals.
   2. running the Monte Carlo simulations based on the smoothness to estimate the critical cluster sizes according to a set of p-values.
   3. correcting the clusters in your statistical maps using the critical cluster sizes.
 
-- `match_groups_in_table` --> If you have two groups (in the same dataframe) and want to match them based on a continuous variable. *I use it for age matching*. It makes an initial match taking participants from the majority group until it arrives to the number of participants in the minority group. Then, it keeps adding the closest participants from the majority group and making statistical tests until it arrives to statistical significance. It returns a dataframe with the matched participants.
+- `match_groups_in_table` --> (WIP) If you have two groups (in the same dataframe) and want to match them based on a continuous variable. *I use it for age matching*. It makes an initial match taking participants from the majority group until it arrives to the number of participants in the minority group. Then, it keeps adding the closest participants from the majority group and making statistical tests until it arrives to statistical significance. It returns a dataframe with the matched participants.
 
 - `atlas_overlap` --> Informs about the overlap between a binary mask and a given atlas. *I use it for checking the overlap between my statistically significant cluster masks and atlases of interest*. It returns a dataframe with the overlap between the binary mask and each region in the atlas in percentage and in number of voxels.
+
 
 ## Installation (User)
 You can install the package using pip, as it is available on PyPI:
