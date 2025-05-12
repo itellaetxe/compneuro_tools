@@ -199,11 +199,15 @@ def main():
                       args.design_matrix,
                       args.contrast_matrix)
 
+    # Save the residuals image
+    residuals_path = os.path.join(args.output, "residuals.nii.gz")
+    results["contrast_0"]["residuals"].to_filename(residuals_path)
+    # Save the betas images
+    betas_im_path = os.path.join(args.output, "betas.nii.gz")
+    results["contrast_0"]["betas"].to_filename(betas_im_path)
+
     # Save the results
     for contrast_name, result in results.items():
-        # Save the residuals image
-        residuals_path = os.path.join(args.output, "residuals.nii.gz")
-        result["residuals"].to_filename(residuals_path)
 
         # Set the contrast output path
         contrast_output_path = os.path.join(args.output, contrast_name)
@@ -223,9 +227,6 @@ def main():
         T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
         result["Tstat"].to_filename(T_im_path)
 
-        # Save the betas image
-        betas_im_path = os.path.join(contrast_output_path, "betas.nii.gz")
-        result["betas"].to_filename(betas_im_path)
         # Effect size (Cohen's d)
         # TODO: Implement Cohen's d calculation, depends on the contrast.
         # s = np.sqrt(((n1-1)*s1**2 + (n2-1)*s2**2) / (n1 + n2 - 2))
