@@ -62,7 +62,3 @@ def fetch_xtract(atlas_name = None,
                     "labels": labels,
                     "description": "XTRACT atlas from FSL"}
     return xtract_atlas
-
-
-result = fetch_xtract()
-print(result)
