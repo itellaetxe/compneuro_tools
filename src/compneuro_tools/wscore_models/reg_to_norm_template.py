@@ -94,20 +94,27 @@ def main():
 
         cmd = (f'{FSLBIN}/fsl_reg {img_path} {template} {registered_GM_path} '
                f'-fnirt "--config=GM_2_MNI152GM_2mm.cnf --jout={jacobian_path}"')
-        sp.run(cmd, shell=True, check=True)
-        print("# Registered GM image to template")
+        if not os.path.exists(registered_GM_mod_path):
+            sp.run(cmd, shell=True, check=True)
+            print("# Registered GM image to template")
+        else:
+            print(f"# GM image already registered to template: {registered_GM_mod_path}")
 
         # Apply the jacobian to the registered GM image
         cmd = (f'{FSLBIN}/fslmaths {registered_GM_path} -mul {jacobian_path} '
                f'{registered_GM_mod_path}')
-        print("# Applied jacobian to registered GM image")
+        if not os.path.exists(registered_GM_mod_path):
+            sp.run(cmd, shell=True, check=True)
+            print("# Applied jacobian to registered GM image")
+        else:
+            print(f"# GM image already modulated: {registered_GM_mod_path}")
 
         # Remove jacobian and intermediate non modulated registration results
         warp_partial_path = os.path.join(img_dir,
                                  f"{img_name_no_ext}*_in_{template_name}_warp*")
-        cmd = (f"rm -v {jacobian_path} {registered_GM_path} {registered_GM_mod_path}"
+        cmd = (f"rm -v {jacobian_path} {registered_GM_path}"
                f" {warp_partial_path} *_struc_GM_to_{template_name}_GM.log")
-        sp.run(cmd, shell=True, check=True)
+        sp.run(cmd, shell=True, check=False)
 
     ### STEP 2: MERGE ALL REGISTERED GM IMAGES
     output_merge_path = os.path.join(args.output,
@@ -115,8 +122,13 @@ def main():
     print(f"\n### Merging all registered GM images to {output_merge_path}")
 
     cmd = (f"{FSLBIN}/fslmerge -t {output_merge_path} "
-           f"{FSLBIN}/imglob `{img_dir}/*_in_{template_name}_mod.*`")
+           f"`{FSLBIN}/imglob {img_dir}/*_in_{template_name}_mod.*`")
+    sp.run(cmd, shell=True, check=True)
 
+    output_merge_path_s3 = os.path.join(args.output,
+                                       f"GM_mod_merg_in_{template_name}_s3.nii.gz")
+    cmd = (f"{FSLBIN}/fslmaths {output_merge_path} -s 3 {output_merge_path_s3}")
+    sp.run(cmd, shell=True, check=True)
     print("# Finished merging\n### DONE!")
 
 
