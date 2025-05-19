@@ -14,7 +14,8 @@ Z_THRESHOLDS = [float(norm.ppf(1 - (pval/2))) for pval in PVALS]
 
 
 def _setup_parser():
-    parser = ArgumentParser(description="Correct GLM results using cluster correction based on MC simulations.")
+    parser = ArgumentParser(description=("Correct GLM results using cluster correction"
+                                         "based on MC simulations."))
     parser.add_argument(
         "--residuals",
         type=str,
@@ -99,7 +100,7 @@ def _check_afni():
     # Check if the env var $AFNI_IMAGE_PATH is set
     if "AFNI_IMAGE_PATH" not in os.environ:
         raise EnvironmentError(
-            "$AFNI_IMAGE_PATH is not set. Please set it to the AFNI apptainer image path."
+        "$AFNI_IMAGE_PATH is not set. Please set it to the AFNI apptainer image path."
         )
 
     # Check if the env var $AFNI_IMAGE_PATH is a file that exists
@@ -151,7 +152,8 @@ def main():
         sp.run(command, shell=True, check=True)
 
     # Run 3dClustSim to estimate the cluster size threshold
-    print("\n[INFO] Running 3dClustSim to estimate the cluster size threshold for different significance levels...")
+    print(("\n[INFO] Running 3dClustSim to estimate the cluster size threshold for"
+           "different significance levels..."))
     pvals_string = " ".join([str(p) for p in PVALS])
 
     command = (

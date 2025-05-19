@@ -41,8 +41,10 @@ fit_glm = "compneuro_tools.fit_glm:main"
 cluster_correction_mc = "compneuro_tools.cluster_correction_mc:main"
 match_groups_in_table = "compneuro_tools.match_groups_in_table:main"
 atlas_overlap = "compneuro_tools.atlas_overlap:main"
+
 reg_gm_to_gm_template = "compneuro_tools.wscore_models.reg_to_norm_template:main"
 compute_wmaps = "compneuro_tools.wscore_models.compute_wmaps:main"
+binarize_wmaps = "compneuro_tools.wscore_models.binarize_wmaps:main"
 
 
 [tool.uv]
