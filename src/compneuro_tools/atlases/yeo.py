@@ -20,7 +20,7 @@ def fetch_yeo7(atlas_name = None,
     
 
     # Parse the XML file to get the labels
-    labels = YEO7_LABELS
+    labels = list(YEO7_LABELS.keys())
     # Get the Yeo 7 atlas from nilearn
     yeo7_atlas = datasets.fetch_atlas_yeo_2011()
 
@@ -28,4 +28,6 @@ def fetch_yeo7(atlas_name = None,
                     "maps": image.load_img(yeo7_atlas["thick_7"]),
                     "labels": labels,
                     "description": "Yeo 7 atlas from nilearn"}
+    # Remove 4th dimension in the maps
+    yeo7_atlas["maps"] = image.index_img(yeo7_atlas["maps"], 0)
     return yeo7_atlas

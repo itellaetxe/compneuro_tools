@@ -143,7 +143,7 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
     region_voxel_overlap = []
     region_voxel_number = []
     region_overlap_percentage = []
-    for i in range(1, len(atlas["labels"][1:]) + 1):
+    for i in range(1, len(atlas["labels"])):
         # Create mask for this region
         region_mask = (atlas_data == i)
 
