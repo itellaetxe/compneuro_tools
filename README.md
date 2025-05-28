@@ -21,8 +21,9 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
 ## Tools
 **Each CLI tool has a `--help` option that will show you how to use it. You can also check the code for more details.**
 
-- `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format. This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own Python version c:). The list of output files, for each contrast:
-  - `residuals.nii.gz` --> Residuals of the specific contrast
+- `fit_glm` --> Since I do not trust how FSL fits GLMs and sometimes the documentation is a bit lacking, here you go. *I use it for fitting my GLMs.* Works with design matrices and contrast matrices in `.txt` format (**not** in FSL's format!). This code is largely based on Ibai Diez's MATLAB code (thank you Ibai for letting me write my own Python version c:). The list of output files, for each contrast:
+  - `residuals.nii.gz` --> Residuals of the fitting
+  - `betas.nii.gz` --> Beta coefficients of the fitting
   - `Tstat.nii.gz` --> T-statistic of the specific contrast
   - `Zstat.nii.gz` --> Z-statistic of the specific contrast
   - `uncorr_pvals_negative.nii.gz` --> Uncorrected p-values of the specific contrast (negative)
@@ -43,6 +44,10 @@ You can install the package using pip, as it is available on PyPI:
 ```bash
 pip install compneuro-tools
 ```
+We like to use **[uv](https://astral.sh/blog/uv)** for managing our Python environments. If you want to install the package using uv, you can do it like this:
+```bash
+uv pip install compneuro-tools
+```
 
 ## Installation (Developer)
 1. Clone this repo.
@@ -51,3 +56,6 @@ pip install compneuro-tools
 4. Activate the virtual environment: `source .venv/bin/activate`
 5. Install the dependencies: `uv sync` (or if you prefer `uv pip install -e <path_to_this_repo>`)
 6. Done :)
+
+## How to use the package
+You can find a comprehensive tutorial [here](./Tutorial.md)
