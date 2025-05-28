@@ -7,6 +7,7 @@ import polars as pl
 
 from nilearn import image, datasets
 from compneuro_tools.atlases import fetch_xtract
+from compneuro_tools.atlases.yeo import fetch_yeo7
 
 
 ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harvard_oxford,
@@ -20,7 +21,12 @@ ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harv
                                            "dir": None},
               "xtract":                   {"function": fetch_xtract,
                                             "name": None,
-                                            "dir": None}}
+                                            "dir": None},
+              "yeo7":                     {"function": fetch_yeo7,
+                                            "name": None,
+                                            "dir": None}
+}
+
 ATLAS_NAMES = list(ATLAS_DICT.keys())
 
 
