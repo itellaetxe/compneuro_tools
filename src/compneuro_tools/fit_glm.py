@@ -80,6 +80,11 @@ def _check_args(parser):
     # Check that the design matrix and contrast matrix are compatible, and load them
     design_matrix = np.loadtxt(args.design)
     contrast_matrix = np.loadtxt(args.contrast)
+    # If just one column, transpose it to make it a 2D array
+    if design_matrix.ndim == 1:
+        design_matrix = design_matrix[:, np.newaxis]
+    if contrast_matrix.ndim == 1:
+        contrast_matrix = contrast_matrix[:, np.newaxis]
     if design_matrix.shape[1] != contrast_matrix.shape[1]:
         raise ValueError("Design matrix and contrast matrix are not compatible, they have different number of columns.")
     else:
