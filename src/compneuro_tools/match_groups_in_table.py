@@ -252,9 +252,15 @@ def subsample_majority_by_numerical_match(df: pl.DataFrame,
     minority_ages = minority_df[matching_column].to_numpy()
 
     mean_diff = np.abs(minority_df[matching_column].mean() - majority_df[matching_column].mean())
+    t_test_init = ttest_ind(minority_ages, majority_df[matching_column].to_numpy(), equal_var=False)
     print(f"Original sizes -> {minority_name} (minority): {len(minority_df)}, {majority_name} (majority): {len(majority_df)}"
-          f"\nMean absolute difference in \"{matching_column}\" before matching: {mean_diff:.3f}\n")
-    
+          f"\nMean absolute difference in \"{matching_column}\" before matching: {mean_diff:.3f}\n"
+          f"t-test p-value: {t_test_init.pvalue:.3f}, T-stat: {t_test_init.statistic:.3f}\n")
+
+    if t_test_init.pvalue > pvalue_threshold:
+        print(f"### p-value before matching ({t_test_init.pvalue:.3f}) is above the threshold "
+              f"({pvalue_threshold:.3f}). No matching needed.")
+        return pl.concat([minority_df, minority_df])
     # For each participant in minority group, find closest match in majority group
     broken = False
     for minority_age in minority_ages:
@@ -282,8 +288,9 @@ def subsample_majority_by_numerical_match(df: pl.DataFrame,
         
         # Remove the matched participant to prevent reusing
         majority_df = majority_df.drop("index").with_row_index().filter(pl.col("index") != best_match_idx)
-        
-        # Stop when all participants in the majority group are matched, or when there is a statistically significant difference in the ages
+
+        # Stop when all participants in the minority group are matched, or when there is
+        # a statistically significant difference in the ages
         t_test = ttest_ind(minority_ages, majority_matched_age, equal_var=False)
         pval = t_test.pvalue
         if np.isnan(pval):
@@ -297,7 +304,8 @@ def subsample_majority_by_numerical_match(df: pl.DataFrame,
             broken = True
             break
 
-    # If match_sizes is False, keep adding participants until the p-value indicates a statistically significant difference
+    # If match_sizes is False, keep adding participants until the p-value indicates a
+    # statistically significant difference in the means (two-sample t-test)
     if (not match_sizes) and (not broken):
         # Compute the mean of the minority group
         minority_mean = minority_df[matching_column].mean()
