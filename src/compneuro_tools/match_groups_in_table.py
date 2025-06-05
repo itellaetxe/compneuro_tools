@@ -260,7 +260,7 @@ def subsample_majority_by_numerical_match(df: pl.DataFrame,
     if t_test_init.pvalue > pvalue_threshold:
         print(f"### p-value before matching ({t_test_init.pvalue:.3f}) is above the threshold "
               f"({pvalue_threshold:.3f}). No matching needed.")
-        return pl.concat([minority_df, minority_df])
+        return pl.concat([minority_df, majority_df], how="vertical").drop("index")
     # For each participant in minority group, find closest match in majority group
     broken = False
     for minority_age in minority_ages:

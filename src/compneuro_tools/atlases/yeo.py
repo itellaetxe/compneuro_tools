@@ -1,5 +1,3 @@
-import os
-
 from nilearn import image, datasets
 
 YEO7_LABELS = {"Background": 0,
