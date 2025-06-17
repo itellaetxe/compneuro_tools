@@ -224,21 +224,18 @@ def fit_glm(mask_img,
 
         # Compute the F-statistic
         df = X.shape[0] - X.shape[1]  # Residual degrees of freedom
-        F = numerator_f_all_voxels / (MSE * df_numerator)
+        F = (numerator_f_all_voxels / df_numerator) / MSE 
         F_im = masker.inverse_transform(F)
 
         # Uncorrected p-values
         pvals = f.sf(F, df_numerator, df)
         pval_array = np.zeros_like(mask_2d)
         pval_array[mask_2d > 0] = 1 - pvals
-        pval_array_pos = pval_array * np.where(F > 0, 1, 0)
-        pval_array_neg = pval_array * np.where(F < 0, 1, 0)
-        pval_im_pos = masker.inverse_transform(pval_array_pos)
-        pval_im_neg = masker.inverse_transform(pval_array_neg)
+        pval_im = masker.inverse_transform(pval_array)
     
         # Z-Stat
-        Z = norm.ppf(1 - (pvals/2))
-        Z = np.where(F > 0, Z, -Z)
+        Z = norm.ppf(1 - pvals)
+        Z = np.where(np.isfinite(Z), Z, 0)
         Z_array = Z * mask_2d
         Z_im = masker.inverse_transform(Z_array)
         
@@ -248,8 +245,7 @@ def fit_glm(mask_img,
     
         # Put the results into the dictionary
         results["contrast_0"]["Zstat"] = Z_im
-        results["contrast_0"]["pvals_positive"] = pval_im_pos
-        results["contrast_0"]["pvals_negative"] = pval_im_neg
+        results["contrast_0"]["pvals"] = pval_im
         results["contrast_0"]["Fstat"] = F_im
         results["contrast_0"]["residuals"] = residuals_im
         results["contrast_0"]["betas"] = betas_im
@@ -291,10 +287,14 @@ def main():
         result["Zstat"].to_filename(Z_im_path)
 
         # Save the p-value images
-        pos_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_positive.nii.gz")
-        result["pvals_positive"].to_filename(pos_pval_im_path)
-        neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
-        result["pvals_negative"].to_filename(neg_pval_im_path)
+        if not args.f_test:
+            pos_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_positive.nii.gz")
+            result["pvals_positive"].to_filename(pos_pval_im_path)
+            neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
+            result["pvals_negative"].to_filename(neg_pval_im_path)
+        else:
+            pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals.nii.gz")
+            result["pvals"].to_filename(pval_im_path)
 
         if not args.f_test:
         # Save the t-Statistic image
