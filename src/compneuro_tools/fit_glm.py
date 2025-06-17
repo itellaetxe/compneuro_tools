@@ -5,7 +5,7 @@ import numpy as np
 
 from nilearn import image
 from nilearn.maskers import NiftiMasker
-from scipy.stats import t, norm
+from scipy.stats import t, f, norm
 
 
 # Python version of Ibai Diez's GLM fitting script. Thanks Ibai for your MATLAB code c:
@@ -30,6 +30,14 @@ def _setup_parser():
         type=str,
         required=True,
         help="Path to the contrast file."
+    )
+
+    parser.add_argument(
+        "--f_test",
+        action='store_true',
+        required=False,
+        default=False,
+        help="If set, perform F-test instead of t-test. Default is t-test.",
     )
 
     parser.add_argument(
@@ -121,7 +129,8 @@ def _check_args(parser):
 def fit_glm(mask_img,
             input_img,
             design_matrix,
-            contrast_matrix):
+            contrast_matrix,
+            f_test=False):
     # Initialize the results
     results = {}
 
@@ -153,41 +162,97 @@ def fit_glm(mask_img,
     residuals_im = masker.inverse_transform(residuals)
 
     # Hypothesis Testing
-    for i in range(contrasts.shape[0]):
-        results[f"contrast_{i}"] = {}
-        contrast = contrasts[i, :]
+    if not f_test:
+        for i in range(contrasts.shape[0]):
+            results[f"contrast_{i}"] = {}
+            contrast = contrasts[i, :]
 
-        # Compute Standard Error and t Statistic
-        SE = np.sqrt(MSE * (contrast @ np.linalg.inv(X.T @ X) @ contrast.T))
-        T = (contrast @ betas) / SE
-        T_im = masker.inverse_transform(T)
+            # Compute Standard Error and t Statistic
+            SE = np.sqrt(MSE * (contrast @ np.linalg.inv(X.T @ X) @ contrast.T))
+            T = (contrast @ betas) / SE
+            T_im = masker.inverse_transform(T)
+
+            # Uncorrected p-values
+            pvals = 2 * (1 - t.cdf(np.abs(T), df))
+            pval_array = np.zeros_like(mask_2d)
+            pval_array[mask_2d > 0] = 1 - pvals
+            pval_array_pos = pval_array * np.where(T > 0, 1, 0)
+            pval_array_neg = pval_array * np.where(T < 0, 1, 0)
+            pval_im_pos = masker.inverse_transform(pval_array_pos)
+            pval_im_neg = masker.inverse_transform(pval_array_neg)
+
+            # Z-Stat
+            Z = norm.ppf(1 - (pvals/2))
+            Z = np.where(T > 0, Z, -Z)
+            Z_array = Z * mask_2d
+            Z_im = masker.inverse_transform(Z_array)
+
+            # Betas
+            beta_array = betas * mask_2d
+            betas_im = masker.inverse_transform(beta_array)
+
+            # Put the results into the dictionary
+            results[f"contrast_{i}"]["Zstat"] = Z_im
+            results[f"contrast_{i}"]["pvals_positive"] = pval_im_pos
+            results[f"contrast_{i}"]["pvals_negative"] = pval_im_neg
+            results[f"contrast_{i}"]["Tstat"] = T_im
+            results[f"contrast_{i}"]["residuals"] = residuals_im
+            results[f"contrast_{i}"]["betas"] = betas_im
+
+    else:  # Compute F-test
+        print("### Performing F-test...")
+        results["contrast_0"] = {}
+        R, P_C = contrasts.shape
+        if P_C != betas.shape[0]:
+            raise ValueError("The number of columns in the contrast matrix does not match the number of betas.")
+        # Number of degrees of freedom
+        df_numerator = R  # We asume the contrast matrix is full row rank
+        C_beta = contrasts @ betas
+        C_XTX_inv_CT = contrasts @ np.linalg.pinv(X.T @ X) @ contrasts.T
+
+        # Compute the F-statistic intermediate values
+        try:
+            inv_C_XTX_inv_CT = np.linalg.inv(C_XTX_inv_CT)
+        except np.linalg.LinAlgError:
+            print("Warning: C * (X'X)^-1 * C' is singular. Using pseudo-inverse.")
+            inv_C_XTX_inv_CT = np.linalg.pinv(C_XTX_inv_CT)
+        
+        # We do this voxel-wise because otherwise it would be too memory intensive
+        numerator_f_all_voxels = np.zeros(betas.shape[1])
+        for i in range(betas.shape[1]):
+            numerator_f_all_voxels[i] = C_beta[:, i].T @ inv_C_XTX_inv_CT @ C_beta[:, i]
+
+        # Compute the F-statistic
+        df = X.shape[0] - X.shape[1]  # Residual degrees of freedom
+        F = numerator_f_all_voxels / (MSE * df_numerator)
+        F_im = masker.inverse_transform(F)
 
         # Uncorrected p-values
-        pvals = 2 * (1 - t.cdf(np.abs(T), df))
+        pvals = f.sf(F, df_numerator, df)
         pval_array = np.zeros_like(mask_2d)
         pval_array[mask_2d > 0] = 1 - pvals
-        pval_array_pos = pval_array * np.where(T > 0, 1, 0)
-        pval_array_neg = pval_array * np.where(T < 0, 1, 0)
+        pval_array_pos = pval_array * np.where(F > 0, 1, 0)
+        pval_array_neg = pval_array * np.where(F < 0, 1, 0)
         pval_im_pos = masker.inverse_transform(pval_array_pos)
         pval_im_neg = masker.inverse_transform(pval_array_neg)
-
+    
         # Z-Stat
         Z = norm.ppf(1 - (pvals/2))
-        Z = np.where(T > 0, Z, -Z)
+        Z = np.where(F > 0, Z, -Z)
         Z_array = Z * mask_2d
         Z_im = masker.inverse_transform(Z_array)
-
+        
         # Betas
         beta_array = betas * mask_2d
         betas_im = masker.inverse_transform(beta_array)
-
+    
         # Put the results into the dictionary
-        results[f"contrast_{i}"]["Zstat"] = Z_im
-        results[f"contrast_{i}"]["pvals_positive"] = pval_im_pos
-        results[f"contrast_{i}"]["pvals_negative"] = pval_im_neg
-        results[f"contrast_{i}"]["Tstat"] = T_im
-        results[f"contrast_{i}"]["residuals"] = residuals_im
-        results[f"contrast_{i}"]["betas"] = betas_im
+        results["contrast_0"]["Zstat"] = Z_im
+        results["contrast_0"]["pvals_positive"] = pval_im_pos
+        results["contrast_0"]["pvals_negative"] = pval_im_neg
+        results["contrast_0"]["Fstat"] = F_im
+        results["contrast_0"]["residuals"] = residuals_im
+        results["contrast_0"]["betas"] = betas_im
 
     return results
 
@@ -204,7 +269,8 @@ def main():
     results = fit_glm(args.mask_img,
                       args.input_img,
                       args.design_matrix,
-                      args.contrast_matrix)
+                      args.contrast_matrix,
+                      args.f_test)
 
     # Save the residuals image
     residuals_path = os.path.join(args.output, "residuals.nii.gz")
@@ -230,9 +296,14 @@ def main():
         neg_pval_im_path = os.path.join(contrast_output_path, "uncorr_pvals_negative.nii.gz")
         result["pvals_negative"].to_filename(neg_pval_im_path)
 
+        if not args.f_test:
         # Save the t-Statistic image
-        T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
-        result["Tstat"].to_filename(T_im_path)
+            T_im_path = os.path.join(contrast_output_path, "Tstat.nii.gz")
+            result["Tstat"].to_filename(T_im_path)
+        else:
+        # Save the F-Statistic image
+            F_im_path = os.path.join(contrast_output_path, "Fstat.nii.gz")
+            result["Fstat"].to_filename(F_im_path)
 
         # Effect size (Cohen's d)
         # TODO: Implement Cohen's d calculation, depends on the contrast.
