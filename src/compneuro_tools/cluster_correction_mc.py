@@ -115,10 +115,10 @@ def _check_afni():
 
 
 def _check_fsl():
-    # Check if the env var $FS_DIR is set
+    # Check if the env var $FSLDIR is set
     if "FSLDIR" not in os.environ:
         raise EnvironmentError(
-            "$FSL_DIR is not set. Please set it to the FSL installation path."
+            "$FSLDIR is not set. Please set it to the FSL installation path."
         )
 
     # Check if the env var $FSLDIR is a directory that exists
