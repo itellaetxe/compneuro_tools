@@ -31,12 +31,13 @@ There are tons of different ways to create these, but if you really want to avoi
 ### Design matrix example for our case (design_matrix.txt)
 Our columns will be: intercept, group_young, group_old, age, sex
 ```
-1 1 0 25 0
-1 1 0 30 1
-1 0 1 65 0
-1 0 1 70 1
+1 0 25 0
+1 0 30 1
+0 1 65 0
+0 1 70 1
 ```
 You could also set a single column for the group, but I like to do it with two separate columns, it makes it clearer for me for building contrasts.
+IMPORTANT: It is very common to include a column of ones as the first column of the design matrix to account for the intercept term in the GLM. In this case we did not include it because the first two columns already account for the group means. If you include a column of ones in the design matrix above, you will get an error because collinearity, and no inverse of the matrix can be computed therefore.
 
 ### Contrast matrix example for our case (contrast_matrix.txt)
 If we want to compare the two groups (young vs old), we can use the following contrast matrix:
@@ -56,7 +57,7 @@ You should have a directory structure like this, inside a analysis_name folder (
 analysis_group_comparison/
 ├── design_matrix.txt
 ├── contrast_matrix.txt
-├── GM_mod_merg_s3.nii.gz
+├── GM_mod_merg_s3.nii.gz (or any other 4D NIfTI file with your data)
 ```
 
 ---
