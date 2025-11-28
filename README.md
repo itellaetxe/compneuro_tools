@@ -8,7 +8,7 @@
 My personal collection of simple yet useful ***"brain gardening tools"*** for my PhD works in [CompNeuroBilbaoLab](https://www.compneurobilbao.eus)!
 
 ## Requirements
-Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it works fine.
+I use Linux. Tested on Debian and on WSL2 Debian.
 
 - Python 3.11 or higher
 - FSL 6.0 or higher
@@ -16,7 +16,7 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
   ```bash
   apptainer build AFNI.sif docker://afni/afni_make_build:AFNI_25.0.09
   ```
-  Then set you environment variable `$AFNI_IMAGE_PATH` to the path of the image.
+  Then set you environment variable `$AFNI_IMAGE_PATH` to the path of the image. Also, just in case make the image executable with `sudo chmod +x <afni_image_path>`.
 
 ## Tools
 **Each CLI tool has a `--help` option that will show you how to use it. You can also check the code for more details.**
@@ -25,11 +25,11 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
   - `residuals.nii.gz` --> Residuals of the fitting
   - `betas.nii.gz` --> Beta coefficients of the fitting
   - `Tstat.nii.gz` --> T-statistic of the specific contrast
-  - `Zstat.nii.gz` --> Z-statistic of the specific contrast
+  - `Zstat_contrast.nii.gz` --> Z-statistic of the specific contrast
   - `uncorr_pvals_negative.nii.gz` --> Uncorrected p-values of the specific contrast (negative)
   - `uncorr_pvals_positive.nii.gz` --> Uncorrected p-values of the specific contrast (positive)
 
-- `cluster_correction_mc` --> Correct the clusters in your statistical maps using Monte Carlo simulations. *I use it for correcting clusters in my statistical maps after running `fit_glm`*. Uses AFNI for:
+- `cluster_correction_mc` --> Correct for the clusters in your statistical maps using Monte Carlo simulations. *I use it for correcting clusters in my statistical maps after running `fit_glm`*. Uses AFNI for:
   1. estimating the smoothness of your residuals.
   2. running the Monte Carlo simulations based on the smoothness to estimate the critical cluster sizes according to a set of p-values.
   3. correcting the clusters in your statistical maps using the critical cluster sizes.
@@ -38,6 +38,9 @@ Use Linux or MacOS. I work with WSL2 in Windows with a Debian distro, and it wor
 
 - `atlas_overlap` --> Informs about the overlap between a binary mask and a given atlas. *I use it for checking the overlap between my statistically significant cluster masks and atlases of interest*. It returns a dataframe with the overlap between the binary mask and each region in the atlas in percentage and in number of voxels.
 
+- `compute_wmaps` --> Computes W-score maps from a given normative model that you have previously fit with `fit_glm`. It takes a 4D image to which the normative model betas will be applied, and returns a 4D image with the W-score maps, `w_scores.nii.gz`. The design matrix specification is the same as in `fit_glm`, whitespace-separated plain txt files. Easy.
+
+- `binarize_wmaps` --> Helper CLI that takes a 4D W-scores image (however it could work with any other 4D image) and binarizes it below and above a given threshold. Returns two 4D images: `<image_name>_positive.nii.gz` and `<image_name>_negative.nii.gz`, corresponding to the regions above and below the given threshold, respectively.
 
 ## Installation (User)
 You can install the package using pip, as it is available on PyPI:
