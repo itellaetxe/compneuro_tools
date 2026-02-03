@@ -141,9 +141,15 @@ def main():
 
     # Estimate the smoothness of GLM residuals
     print("\n[INFO] Estimating smoothness of GLM residuals...")
+    # Construct the bind mounts to any external paths
+    binds = ""
+    for i, arg in enumerate([args.mask, args.residuals, args.output, args.zmap]):
+        binds += f" --bind {os.path.dirname(os.path.abspath(arg))}"
+    binds = binds[1:]
+
     command = (
         f"cd {args.output} && "
-        f"{afni_path} 3dFWHMx -mask {args.mask} -acf tmp.txt {args.residuals} | "
+        f"apptainer exec {binds} {afni_path} 3dFWHMx -mask {args.mask} -acf tmp.txt {args.residuals} | "
         "tail -n 1 | awk '{print $1\" \"$2\" \"$3}' > acf.txt"
     )
     if os.path.exists(os.path.join(args.output, "acf.txt")):
@@ -158,7 +164,7 @@ def main():
 
     command = (
         f"cd {args.output} && "
-        f"{afni_path} 3dClustSim -mask {args.mask} -acf $(cat acf.txt) -athr {PVALS[0]} "
+        f"apptainer exec {binds} {afni_path} 3dClustSim -mask {args.mask} -acf $(cat acf.txt) -athr {PVALS[0]} "
         f"-iter {args.n_iterations} -pthr {pvals_string} -prefix acf"
     )
 
