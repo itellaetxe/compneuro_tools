@@ -64,9 +64,9 @@ def setup_parser() -> ArgumentParser:
         "--reference",
         type=str,
         required=True,
-        choices=["mask", "atlas"],
-        help=("Reference for overlap calculation: 'mask' to calculate percentage of mask voxels overlapping with atlas regions"
-              " 'atlas' to calculate percentage of atlas region voxels overlapping with the mask.")
+        choices=["mask", "roi"],
+        help=("Reference for overlap calculation: 'mask' to calculate percentage of mask voxels overlapping with atlas regions (ROIs)"
+              " 'roi' to calculate percentage of atlas region (ROI) voxels overlapping with the mask.")
     )
 
     return parser
@@ -184,6 +184,7 @@ def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataF
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
+        "total_voxels_in_mask": np.sum(mask_data),
     }
     # Convert to DataFrame for easier viewing
     overlap_df = pl.DataFrame(region_counts)
@@ -248,6 +249,7 @@ def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFr
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
+        "total_voxels_in_mask": np.sum(mask_data),
     }
     # Convert to DataFrame for easier viewing
     overlap_df = pl.DataFrame(region_counts)
