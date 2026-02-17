@@ -161,7 +161,11 @@ def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataF
     region_voxel_overlap = []
     region_voxel_number = []
     region_overlap_percentage = []
-    for i in range(1, len(atlas["labels"])):
+    region_values = np.sort(np.unique(atlas_data))
+    region_values = region_values[region_values != 0]
+    if len(region_values) != len(atlas["labels"]) - 1:
+        region_values = np.arange(1, len(atlas["labels"]))
+    for i in region_values:
         # Create mask for this region
         region_mask = (atlas_data == i)
 
@@ -180,7 +184,7 @@ def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataF
         region_overlap_percentage.append(overlap_percentage)
 
     region_counts = {
-        "region": atlas["labels"][1:],  # Skip the first label (Background)
+        "region": atlas["labels"][1:],
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
@@ -225,7 +229,11 @@ def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFr
     region_voxel_overlap = []
     region_voxel_number = []
     region_overlap_percentage = []
-    for i in range(1, len(atlas["labels"])):
+    region_values = np.sort(np.unique(atlas_data))
+    region_values = region_values[region_values != 0]
+    if len(region_values) != len(atlas["labels"]) - 1:
+        region_values = np.arange(1, len(atlas["labels"]))
+    for i in region_values:
         # Create mask for this region
         region_mask = (atlas_data == i)
 
@@ -245,7 +253,7 @@ def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFr
         region_overlap_percentage.append(overlap_percentage)
 
     region_counts = {
-        "region": atlas["labels"][1:],  # Skip the first label (Background)
+        "region": atlas["labels"][1:],
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
