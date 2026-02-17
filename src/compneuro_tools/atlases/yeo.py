@@ -11,19 +11,18 @@ YEO7_LABELS = {"Background": 0,
 
 
 def fetch_yeo7(atlas_name = None,
-              atlas_dir = None,) -> dict:
+               atlas_dir = None,) -> dict:
     """
     Fetch the Yeo 7 atlas from the FSL installation directory.
     """
-    
 
     # Parse the XML file to get the labels
     labels = list(YEO7_LABELS.keys())
     # Get the Yeo 7 atlas from nilearn
-    yeo7_atlas = datasets.fetch_atlas_yeo_2011()
+    yeo7_atlas = datasets.fetch_atlas_yeo_2011("thick_7")
 
     yeo7_atlas = {"filename": datasets.atlas.get_dataset_dir("yeo_2011"),
-                    "maps": image.load_img(yeo7_atlas["thick_7"]),
+                    "maps": image.load_img(yeo7_atlas["maps"]),
                     "labels": labels,
                     "description": "Yeo 7 atlas from nilearn"}
     # Remove 4th dimension in the maps
