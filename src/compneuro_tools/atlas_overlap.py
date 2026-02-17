@@ -8,6 +8,7 @@ import polars as pl
 from nilearn import image, datasets
 from compneuro_tools.atlases import fetch_xtract
 from compneuro_tools.atlases.yeo import fetch_yeo7
+from compneuro_tools.atlases.cole_anticevic import fetch_cole_anticevic
 
 
 ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harvard_oxford,
@@ -24,7 +25,13 @@ ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harv
                                             "dir": None},
               "yeo7":                     {"function": fetch_yeo7,
                                             "name": None,
-                                            "dir": None}
+                                            "dir": None},
+              "aal_spm12":                {"function": datasets.fetch_atlas_aal,
+                                            "name": "SPM12",
+                                            "dir": None},
+              "ColeAnticevicSubcortical": {"function": fetch_cole_anticevic,
+                                            "name": None,
+                                            "dir": None},
 }
 
 ATLAS_NAMES = list(ATLAS_DICT.keys())
@@ -51,6 +58,15 @@ def setup_parser() -> ArgumentParser:
         type=str, 
         required=False, 
         help="File to save the output CSV data"
+    )
+
+    parser.add_argument(
+        "--reference",
+        type=str,
+        required=True,
+        choices=["mask", "atlas"],
+        help=("Reference for overlap calculation: 'mask' to calculate percentage of mask voxels overlapping with atlas regions"
+              " 'atlas' to calculate percentage of atlas region voxels overlapping with the mask.")
     )
 
     return parser
@@ -113,8 +129,10 @@ def _check_args_and_env(args) -> None:
     return args
 
 
-def compute_overlap_with_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
+def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
     """Compute the overlap percentage of a binary mask with an atlas.
+    This function computes the percentage of voxels that the binary mask occupies for each ROI in the atlas.
+    Useful to understand how much of each atlas region is covered by the mask.
 
     Parameters
     ----------
@@ -174,6 +192,70 @@ def compute_overlap_with_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
     return overlap_df
 
 
+def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFrame:
+    """Compute the overlap percentage of a binary mask with an atlas with respect to the total mask volume.
+    This tells you how much of the mask overlaps with each atlas region, as a percentage of the total mask volume.
+    Useful to understand how much of the mask is covered by each atlas region.
+
+    Parameters
+    ----------
+    mask_im : np.ndarray
+        The binary mask image.
+    atlas : np.ndarray
+        Atlas to compute overlap with.
+        The atlas should be a 3D image with the same shape as the mask.
+
+    Returns
+    -------
+    pl.DataFrame
+        A DataFrame containing the overlap count, total region voxels,
+        and overlap percentage for each region.
+    """
+    # Resample the atlas to the input mask
+    atlas_data = image.resample_to_img(atlas["maps"],
+                                       mask_im,
+                                       interpolation="nearest",
+                                       copy_header=True,
+                                       force_resample=True).get_fdata()
+
+    # Mask data
+    mask_data = mask_im.get_fdata().astype(bool)
+    # For each region in the atlas, compute the overlap
+    region_voxel_overlap = []
+    region_voxel_number = []
+    region_overlap_percentage = []
+    for i in range(1, len(atlas["labels"])):
+        # Create mask for this region
+        region_mask = (atlas_data == i)
+
+        # Count voxels in this region that are also in the binary mask
+        overlap_count = np.sum(mask_data & region_mask)
+        total_mask_voxels = np.sum(mask_data)
+        total_region_voxels = np.sum(region_mask)
+        
+        # Calculate percentage of overlap
+        if total_mask_voxels > 0:
+            overlap_percentage = (overlap_count / total_mask_voxels) * 100
+        else:
+            overlap_percentage = 0
+
+        region_voxel_overlap.append(int(overlap_count),)
+        region_voxel_number.append(int(total_region_voxels),)
+        region_overlap_percentage.append(overlap_percentage)
+
+    region_counts = {
+        "region": atlas["labels"][1:],  # Skip the first label (Background)
+        "overlap_percentage": region_overlap_percentage,
+        "overlapping_voxel_count": region_voxel_overlap,
+        "total_voxels_region": region_voxel_number,
+    }
+    # Convert to DataFrame for easier viewing
+    overlap_df = pl.DataFrame(region_counts)
+    overlap_df = overlap_df.sort(by="overlap_percentage", descending=True)
+
+    return overlap_df
+
+
 def main() -> None:
     args = setup_parser().parse_args()
     args = _check_args_and_env(args)
@@ -184,13 +266,17 @@ def main() -> None:
     mask_im = image.load_img(args.input_mask)
 
     # Compute overlap
-    overlap_data = compute_overlap_with_atlas(mask_im, atlas)
+    if args.reference == "mask":
+        overlap_data = compute_overlap_with_atlas_ref_mask(mask_im, atlas)
+    else:
+        overlap_data = compute_overlap_with_atlas_ref_atlas(mask_im, atlas)
 
     # Save the results to a TSV file
     overlap_data.write_csv(args.output_file, separator="\t", include_header=True)
 
     # Print the results, for quick inspection
     pl.Config.set_tbl_rows(len(overlap_data))
+    print(f"\n### Overlap of [{args.input_mask}] with atlas [{args.atlas_name.upper()}] with reference to [{args.reference.upper()}]:")
     print(overlap_data)
     print(f"### Overlap data saved to {args.output_file}")
     print("### Done!")
