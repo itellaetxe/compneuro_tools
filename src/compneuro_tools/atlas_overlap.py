@@ -54,6 +54,14 @@ def setup_parser() -> ArgumentParser:
         help=f"Name of the atlas to use for overlap calculation, choices are: {ATLAS_NAMES}"
     )
     parser.add_argument(
+        "--yeo7_thickness",
+        type=str,
+        required=False,
+        choices=["thick", "thin"],
+        help=("Required when --atlas_name is 'yeo7'. Selects which Yeo 7 atlas to use: "
+              "'thick' or 'thin'.")
+    )
+    parser.add_argument(
         "--output_file", 
         type=str, 
         required=False, 
@@ -80,6 +88,9 @@ def _check_args_and_env(args) -> None:
     # Check if the atlas is valid
     if args.atlas_name not in ATLAS_NAMES:
         raise ValueError(f"### Atlas {args.atlas_name} is not supported.")
+
+    if args.atlas_name == "yeo7" and not args.yeo7_thickness:
+        raise ValueError("### --yeo7_thickness is required when --atlas_name is 'yeo7'.")
 
     # Check if the output is a file path and not a directory
     if args.output_file is not None:
@@ -184,7 +195,7 @@ def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataF
         region_overlap_percentage.append(overlap_percentage)
 
     region_counts = {
-        "region": atlas["labels"][1:],
+        "region": atlas["labels"][1:], # Skip the first label (Background)
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
@@ -253,7 +264,7 @@ def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFr
         region_overlap_percentage.append(overlap_percentage)
 
     region_counts = {
-        "region": atlas["labels"][1:],
+        "region": atlas["labels"][1:], # Skip the first label (Background)
         "overlap_percentage": region_overlap_percentage,
         "overlapping_voxel_count": region_voxel_overlap,
         "total_voxels_region": region_voxel_number,
@@ -271,7 +282,14 @@ def main() -> None:
     args = _check_args_and_env(args)
 
     # Fetch the atlas
-    atlas = args.atlas["function"](args.atlas["name"], args.atlas["dir"])
+    if args.atlas_name == "yeo7":
+        atlas = args.atlas["function"](
+            args.atlas["name"],
+            args.atlas["dir"],
+            cortex_thickness=args.yeo7_thickness
+        )
+    else:
+        atlas = args.atlas["function"](args.atlas["name"], args.atlas["dir"])
     # Load the input mask
     mask_im = image.load_img(args.input_mask)
 
