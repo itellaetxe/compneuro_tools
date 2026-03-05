@@ -6,6 +6,8 @@ import numpy as np
 import polars as pl
 
 from nilearn import image, datasets
+from scipy.stats import hypergeom
+from statsmodels.stats.multitest import multipletests
 from compneuro_tools.atlases import fetch_xtract
 from compneuro_tools.atlases.yeo import fetch_yeo7
 from compneuro_tools.atlases.cole_anticevic import fetch_cole_anticevic
@@ -119,6 +121,10 @@ def _check_args_and_env(args) -> None:
     else:
         # Make the output be in the same directory as the input mask
         name = os.path.basename(args.input_mask).split(".")[0]
+        if args.reference == "mask":
+            name += "_mask_ref"
+        else:
+            name += "_roi_ref"
         name = os.path.join(os.path.abspath(os.path.dirname(args.input_mask)),
                             f"{name}_{args.atlas_name}_overlap.tsv")
         args.output_file = name
@@ -140,141 +146,159 @@ def _check_args_and_env(args) -> None:
     return args
 
 
-def compute_overlap_with_atlas_ref_atlas(mask_im: np.ndarray, atlas) -> pl.DataFrame:
-    """Compute the overlap percentage of a binary mask with an atlas.
-    This function computes the percentage of voxels that the binary mask occupies for each ROI in the atlas.
-    Useful to understand how much of each atlas region is covered by the mask.
-
-    Parameters
-    ----------
-    mask_im : np.ndarray
-        The binary mask image.
-    atlas : np.ndarray
-        Atlas to compute overlap with.
-        The atlas should be a 3D image with the same shape as the mask.
-
-    Returns
-    -------
-    pl.DataFrame
-        A DataFrame containing the overlap count, total region voxels,
-        and overlap percentage for each region.
+def compute_overlap_with_atlas_ref_atlas(mask_im, atlas) -> pl.DataFrame:
     """
-    # Resample the atlas to the input mask
+    Computes overlap, enrichment, and corrected p-values (FDR & Bonferroni)
+    for a binary mask against an atlas.
+    """
+    # 1. Resample and Pre-process
     atlas_data = image.resample_to_img(atlas["maps"],
                                        mask_im,
                                        interpolation="nearest",
                                        copy_header=True,
                                        force_resample=True).get_fdata()
 
-    # Mask data
     mask_data = mask_im.get_fdata().astype(bool)
-    # For each region in the atlas, compute the overlap
-    region_voxel_overlap = []
-    region_voxel_number = []
-    region_overlap_percentage = []
-    region_values = np.sort(np.unique(atlas_data))
-    region_values = region_values[region_values != 0]
-    if len(region_values) != len(atlas["labels"]) - 1:
-        region_values = np.arange(1, len(atlas["labels"]))
-    for i in region_values:
-        # Create mask for this region
-        region_mask = (atlas_data == i)
-
-        # Count voxels in this region that are also in the binary mask
-        overlap_count = np.sum(mask_data & region_mask)
+    atlas_mask = (atlas_data > 0)
+    
+    mask_in_atlas = mask_data & atlas_mask
+    total_atlas_voxels = np.sum(atlas_mask)
+    total_mask_voxels = np.sum(mask_in_atlas)
+    
+    results = []
+    labels = atlas["labels"][1:] # Assuming index 0 is background
+    
+    # 2. First Pass: Compute raw metrics
+    for idx, label in enumerate(labels, start=1):
+        region_mask = (atlas_data == idx)
         total_region_voxels = np.sum(region_mask)
-        
-        # Calculate percentage of overlap
-        if total_region_voxels > 0:
-            overlap_percentage = (overlap_count / total_region_voxels) * 100
-        else:
-            overlap_percentage = 0
-
-        region_voxel_overlap.append(int(overlap_count),)
-        region_voxel_number.append(int(total_region_voxels),)
-        region_overlap_percentage.append(overlap_percentage)
-
-    region_counts = {
-        "region": atlas["labels"][1:], # Skip the first label (Background)
-        "overlap_percentage": region_overlap_percentage,
-        "overlapping_voxel_count": region_voxel_overlap,
-        "total_voxels_region": region_voxel_number,
-        "total_voxels_in_mask": np.sum(mask_data),
-    }
-    # Convert to DataFrame for easier viewing
-    overlap_df = pl.DataFrame(region_counts)
-    overlap_df = overlap_df.sort(by="overlap_percentage", descending=True)
-
-    return overlap_df
-
-
-def compute_overlap_with_atlas_ref_mask(mask_im: np.ndarray, atlas) -> pl.DataFrame:
-    """Compute the overlap percentage of a binary mask with an atlas with respect to the total mask volume.
-    This tells you how much of the mask overlaps with each atlas region, as a percentage of the total mask volume.
-    Useful to understand how much of the mask is covered by each atlas region.
-
-    Parameters
-    ----------
-    mask_im : np.ndarray
-        The binary mask image.
-    atlas : np.ndarray
-        Atlas to compute overlap with.
-        The atlas should be a 3D image with the same shape as the mask.
-
-    Returns
-    -------
-    pl.DataFrame
-        A DataFrame containing the overlap count, total region voxels,
-        and overlap percentage for each region.
-    """
-    # Resample the atlas to the input mask
-    atlas_data = image.resample_to_img(atlas["maps"],
-                                       mask_im,
-                                       interpolation="nearest",
-                                       copy_header=True,
-                                       force_resample=True).get_fdata()
-
-    # Mask data
-    mask_data = mask_im.get_fdata().astype(bool)
-    # For each region in the atlas, compute the overlap
-    region_voxel_overlap = []
-    region_voxel_number = []
-    region_overlap_percentage = []
-    region_values = np.sort(np.unique(atlas_data))
-    region_values = region_values[region_values != 0]
-    if len(region_values) != len(atlas["labels"]) - 1:
-        region_values = np.arange(1, len(atlas["labels"]))
-    for i in region_values:
-        # Create mask for this region
-        region_mask = (atlas_data == i)
-
-        # Count voxels in this region that are also in the binary mask
         overlap_count = np.sum(mask_data & region_mask)
-        total_mask_voxels = np.sum(mask_data)
-        total_region_voxels = np.sum(region_mask)
         
-        # Calculate percentage of overlap
+        if total_region_voxels == 0:
+            continue
+
+        overlap_percentage = (overlap_count / total_region_voxels) * 100
+
         if total_mask_voxels > 0:
-            overlap_percentage = (overlap_count / total_mask_voxels) * 100
+            # Enrichment
+            prop_mask = overlap_count / total_mask_voxels
+            prop_atlas = total_region_voxels / total_atlas_voxels
+            enrichment = prop_mask / prop_atlas
+            
+            # Raw P-value (Hypergeometric)
+            # Probability of observing k or more successes
+            p_val = hypergeom.sf(overlap_count - 1, total_atlas_voxels, 
+                                 total_region_voxels, total_mask_voxels)
         else:
-            overlap_percentage = 0
+            enrichment = 0
+            p_val = 1.0
 
-        region_voxel_overlap.append(int(overlap_count),)
-        region_voxel_number.append(int(total_region_voxels),)
-        region_overlap_percentage.append(overlap_percentage)
+        results.append({
+            "region": label,
+            "overlap_percentage": overlap_percentage,
+            "overlap_count": int(overlap_count),
+            "region_size": int(total_region_voxels),
+            "enrichment": enrichment,
+            "p_value_raw": p_val
+        })
 
-    region_counts = {
-        "region": atlas["labels"][1:], # Skip the first label (Background)
-        "overlap_percentage": region_overlap_percentage,
-        "overlapping_voxel_count": region_voxel_overlap,
-        "total_voxels_region": region_voxel_number,
-        "total_voxels_in_mask": np.sum(mask_data),
-    }
-    # Convert to DataFrame for easier viewing
-    overlap_df = pl.DataFrame(region_counts)
-    overlap_df = overlap_df.sort(by="overlap_percentage", descending=True)
+    if not results:
+        return pl.DataFrame()
 
-    return overlap_df
+    # 3. Second Pass: Multi-comparison corrections
+    raw_ps = [res["p_value_raw"] for res in results]
+    
+    # Bonferroni correction
+    _, p_bonf, _, _ = multipletests(raw_ps, method='bonferroni')
+    
+    # FDR (Benjamini-Hochberg) correction
+    _, p_fdr, _, _ = multipletests(raw_ps, method='fdr_bh')
+
+    # Add corrections back to results
+    for i, res in enumerate(results):
+        res["p_value_bonferroni"] = p_bonf[i]
+        res["p_value_fdr"] = p_fdr[i]
+
+    # 4. Final Polars DataFrame
+    overlap_df = pl.DataFrame(results)
+    
+    # Sort by enrichment for meaningful insights
+    return overlap_df.sort(by="enrichment", descending=True)
+
+
+def compute_overlap_with_atlas_ref_mask(mask_im, atlas) -> pl.DataFrame:
+    """
+    Computes mask composition: what % of the mask falls into each ROI.
+    Includes enrichment and multiple-comparison corrected p-values.
+    """
+    # 1. Resample atlas to mask
+    atlas_data = image.resample_to_img(atlas["maps"],
+                                       mask_im,
+                                       interpolation="nearest",
+                                       copy_header=True,
+                                       force_resample=True).get_fdata()
+
+    mask_data = mask_im.get_fdata().astype(bool)
+    atlas_mask = (atlas_data > 0)
+    
+    # We define the 'Universe' based on where the atlas actually exists
+    mask_in_atlas = mask_data & atlas_mask
+    total_atlas_voxels = np.sum(atlas_mask)         # Total N (The Urn)
+    total_mask_voxels = np.sum(mask_data)           # Total mask size (for composition %)
+    total_mask_in_atlas = np.sum(mask_in_atlas)     # Total n (The Draws)
+    
+    results = []
+    labels = atlas["labels"][1:] # Skip background
+    
+    # 2. Compute metrics
+    for idx, label in enumerate(labels, start=1):
+        region_mask = (atlas_data == idx)
+        total_region_voxels = np.sum(region_mask)    # Total K (Target marbles)
+        overlap_count = np.sum(mask_data & region_mask) # Total k (Successes)
+        
+        if total_region_voxels == 0:
+            continue
+
+        # Composition %: "X% of my mask is in the DMN"
+        mask_composition_pct = (overlap_count / total_mask_voxels) * 100 if total_mask_voxels > 0 else 0
+
+        # Enrichment & Stats
+        if total_mask_in_atlas > 0:
+            # Enrichment formula remains the same regardless of reference
+            prop_mask = overlap_count / total_mask_in_atlas
+            prop_atlas = total_region_voxels / total_atlas_voxels
+            enrichment = prop_mask / prop_atlas
+            
+            # Hypergeometric p-value
+            p_val = hypergeom.sf(overlap_count - 1, total_atlas_voxels, 
+                                 total_region_voxels, total_mask_in_atlas)
+        else:
+            enrichment = 0
+            p_val = 1.0
+
+        results.append({
+            "region": label,
+            "mask_composition_percentage": mask_composition_pct,
+            "overlap_count": int(overlap_count),
+            "region_size": int(total_region_voxels),
+            "enrichment": enrichment,
+            "p_value_raw": p_val
+        })
+
+    if not results:
+        return pl.DataFrame()
+
+    # 3. Multiple Comparison Corrections
+    raw_ps = [res["p_value_raw"] for res in results]
+    _, p_bonf, _, _ = multipletests(raw_ps, method='bonferroni')
+    _, p_fdr, _, _ = multipletests(raw_ps, method='fdr_bh')
+
+    for i, res in enumerate(results):
+        res["p_value_bonferroni"] = p_bonf[i]
+        res["p_value_fdr"] = p_fdr[i]
+
+    # 4. Final Table
+    return pl.DataFrame(results).sort(by="mask_composition_percentage", descending=True)
 
 
 def main() -> None:
