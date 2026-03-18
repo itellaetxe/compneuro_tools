@@ -9,7 +9,7 @@ from nilearn import image, datasets
 from scipy.stats import hypergeom
 from statsmodels.stats.multitest import multipletests
 from compneuro_tools.atlases import fetch_xtract
-from compneuro_tools.atlases.yeo import fetch_yeo7
+from compneuro_tools.atlases.yeo import fetch_yeo7, fetch_yeo17
 from compneuro_tools.atlases.cole_anticevic import fetch_cole_anticevic
 
 
@@ -28,6 +28,9 @@ ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harv
               "yeo7":                     {"function": fetch_yeo7,
                                             "name": None,
                                             "dir": None},
+              "yeo17":                    {"function": fetch_yeo17,
+                                           "name": None,
+                                           "dir": None},
               "aal_spm12":                {"function": datasets.fetch_atlas_aal,
                                             "name": "SPM12",
                                             "dir": None},
@@ -56,7 +59,7 @@ def setup_parser() -> ArgumentParser:
         help=f"Name of the atlas to use for overlap calculation, choices are: {ATLAS_NAMES}"
     )
     parser.add_argument(
-        "--yeo7_thickness",
+        "--yeo_thickness",
         type=str,
         required=False,
         choices=["thick", "thin"],
@@ -91,8 +94,8 @@ def _check_args_and_env(args) -> None:
     if args.atlas_name not in ATLAS_NAMES:
         raise ValueError(f"### Atlas {args.atlas_name} is not supported.")
 
-    if args.atlas_name == "yeo7" and not args.yeo7_thickness:
-        raise ValueError("### --yeo7_thickness is required when --atlas_name is 'yeo7'.")
+    if args.atlas_name in ["yeo7", "yeo17"] and not args.yeo_thickness:
+        raise ValueError("### --yeo_thickness is required when --atlas_name is 'yeo7' or 'yeo17'.")
 
     # Check if the output is a file path and not a directory
     if args.output_file is not None:
@@ -146,84 +149,100 @@ def _check_args_and_env(args) -> None:
     return args
 
 
-def compute_overlap_with_atlas_ref_atlas(mask_im, atlas) -> pl.DataFrame:
+def compute_overlap_with_atlas_ref_atlas(mask_im, atlas, n_perms=5000) -> pl.DataFrame:
     """
-    Computes overlap, enrichment, and corrected p-values (FDR & Bonferroni)
-    for a binary mask against an atlas.
+    Computes overlap, enrichment, and p-values using both 
+    Hypergeometric (theoretical) and Label-Shuffling (empirical) tests.
     """
     # 1. Resample and Pre-process
     atlas_data = image.resample_to_img(atlas["maps"],
                                        mask_im,
                                        interpolation="nearest",
                                        copy_header=True,
-                                       force_resample=True).get_fdata()
+                                       force_resample=True).get_fdata().astype(int)
 
     mask_data = mask_im.get_fdata().astype(bool)
     atlas_mask = (atlas_data > 0)
     
+    # Use only mask voxels that fall within the atlas space
     mask_in_atlas = mask_data & atlas_mask
     total_atlas_voxels = np.sum(atlas_mask)
-    total_mask_voxels = np.sum(mask_in_atlas)
+    total_mask_in_atlas = np.sum(mask_in_atlas)
     
-    results = []
-    labels = atlas["labels"][1:] # Assuming index 0 is background
-    
-    # 2. First Pass: Compute raw metrics
-    for idx, label in enumerate(labels, start=1):
-        region_mask = (atlas_data == idx)
-        total_region_voxels = np.sum(region_mask)
-        overlap_count = np.sum(mask_data & region_mask)
-        
-        if total_region_voxels == 0:
-            continue
-
-        overlap_percentage = (overlap_count / total_region_voxels) * 100
-
-        if total_mask_voxels > 0:
-            # Enrichment
-            prop_mask = overlap_count / total_mask_voxels
-            prop_atlas = total_region_voxels / total_atlas_voxels
-            enrichment = prop_mask / prop_atlas
-            
-            # Raw P-value (Hypergeometric)
-            # Probability of observing k or more successes
-            p_val = hypergeom.sf(overlap_count - 1, total_atlas_voxels, 
-                                 total_region_voxels, total_mask_voxels)
-        else:
-            enrichment = 0
-            p_val = 1.0
-
-        results.append({
-            "region": label,
-            "overlap_percentage": overlap_percentage,
-            "overlap_count": int(overlap_count),
-            "region_size": int(total_region_voxels),
-            "enrichment": enrichment,
-            "p_value_raw": p_val
-        })
-
-    if not results:
+    if total_mask_in_atlas == 0:
         return pl.DataFrame()
 
-    # 3. Second Pass: Multi-comparison corrections
-    raw_ps = [res["p_value_raw"] for res in results]
+    labels = atlas["labels"][1:] # Skip background
+    region_ids = np.arange(1, len(labels) + 1)
     
-    # Bonferroni correction
-    _, p_bonf, _, _ = multipletests(raw_ps, method='bonferroni')
+    # 2. Observed Metrics
+    observed_counts = np.array([np.sum(mask_in_atlas & (atlas_data == i)) for i in region_ids])
+    roi_sizes = np.array([np.sum(atlas_data == i) for i in region_ids])
     
-    # FDR (Benjamini-Hochberg) correction
-    _, p_fdr, _, _ = multipletests(raw_ps, method='fdr_bh')
+    # Calculate Observed Enrichment
+    # Formula: (count / mask_size) / (roi_size / atlas_size)
+    prop_mask = observed_counts / total_mask_in_atlas
+    prop_atlas = roi_sizes / total_atlas_voxels
+    observed_enrichment = np.nan_to_num(prop_mask / prop_atlas)
 
-    # Add corrections back to results
-    for i, res in enumerate(results):
-        res["p_value_bonferroni"] = p_bonf[i]
-        res["p_value_fdr"] = p_fdr[i]
-
-    # 4. Final Polars DataFrame
-    overlap_df = pl.DataFrame(results)
+    # 3. Label Shuffling Permutations
+    # We keep the spatial mask fixed but shuffle the 'meaning' of the labels
+    null_enrichments = np.zeros((len(region_ids), n_perms))
     
-    # Sort by enrichment for meaningful insights
-    return overlap_df.sort(by="enrichment", descending=True)
+    # Optimization: pre-calculate indices for each region once
+    for p in range(n_perms):
+        shuffled_ids = np.random.permutation(region_ids)
+        
+        # In this iteration, ROI 'i' is assigned the spatial data 
+        # of a randomly chosen ROI from the list
+        for i in range(len(region_ids)):
+            # Pick a random ROI's overlap and size to assign to the current ROI
+            shuffled_idx = np.where(region_ids == shuffled_ids[i])[0][0]
+            
+            perm_count = observed_counts[shuffled_idx]
+            perm_roi_size = roi_sizes[shuffled_idx]
+            
+            if perm_roi_size > 0:
+                p_mask = perm_count / total_mask_in_atlas
+                p_atlas = perm_roi_size / total_atlas_voxels
+                null_enrichments[i, p] = p_mask / p_atlas
+            else:
+                null_enrichments[i, p] = 0
+
+    # 4. Statistical Calculations
+    # Theoretical P (Hypergeometric)
+    p_hyper = [hypergeom.sf(k - 1, total_atlas_voxels, K, total_mask_in_atlas) 
+               for k, K in zip(observed_counts, roi_sizes)]
+    
+    # Empirical P (Permutation)
+    # Using (hits + 1) / (perms + 1) to avoid p=0.0
+    p_perm = (np.sum(null_enrichments >= observed_enrichment[:, None], axis=1) + 1) / (n_perms + 1)
+    
+    # Z-scores (Relative strength)
+    null_means = np.mean(null_enrichments, axis=1)
+    null_stds = np.std(null_enrichments, axis=1)
+    z_scores = (observed_enrichment - null_means) / (null_stds + 1e-9)
+    
+    # Correct the permutation P-values
+    _, p_fdr, _, _ = multipletests(p_perm, method='fdr_bh')
+    _, p_bonf, _, _ = multipletests(p_perm, method='bonferroni')
+
+    # 5. Build Final Result
+    results = []
+    for i, label in enumerate(labels):
+        results.append({
+            "region": label,
+            "overlap_percentage": (observed_counts[i] / roi_sizes[i] * 100) if roi_sizes[i] > 0 else 0,
+            "overlap_count": int(observed_counts[i]),
+            "enrichment": observed_enrichment[i],
+            "z_score": z_scores[i],
+            "p_hyper": p_hyper[i],
+            "p_perm_raw": p_perm[i],
+            "p_perm_fdr": p_fdr[i],
+            "p_perm_bonf": p_bonf[i]
+        })
+
+    return pl.DataFrame(results).sort("enrichment", descending=True)
 
 
 def compute_overlap_with_atlas_ref_mask(mask_im, atlas) -> pl.DataFrame:
@@ -310,7 +329,7 @@ def main() -> None:
         atlas = args.atlas["function"](
             args.atlas["name"],
             args.atlas["dir"],
-            cortex_thickness=args.yeo7_thickness
+            cortex_thickness=args.yeo_thickness
         )
     else:
         atlas = args.atlas["function"](args.atlas["name"], args.atlas["dir"])
