@@ -139,8 +139,8 @@ def _check_args_and_env(args) -> None:
 
         # Check if the output file already exists
         if os.path.exists(args.output_file):
-            raise print((f"### Output file {args.output_file} already exists."
-                        "We will rewrite the results!."))
+            print((f"### Output file {args.output_file} already exists. "
+                   "We will rewrite the results."))
 
         # Check if output file ends in .tsv, if not, add .tsv
         if args.output_file and not args.output_file.endswith(".tsv"):

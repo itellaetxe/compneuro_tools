@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from nilearn import image, datasets
+from compneuro_tools.atlases.tian import fetch_tian
 
 
 YEO7_LABELS = {"Background": 0,
@@ -35,6 +36,33 @@ YEO17_LABELS = {"Background": 0,
                 }
 
 
+def _append_tian_subcortical_region(atlas_maps, atlas_labels: list[str]):
+    """
+    Append Tian Subcortical_S1 as a single new region named "Subcortical".
+    """
+    tian_atlas = fetch_tian("Subcortical_S1")
+    tian_resampled = image.resample_to_img(
+        tian_atlas["maps"],
+        atlas_maps,
+        interpolation="nearest",
+        copy_header=True,
+        force_resample=True,
+    )
+
+    atlas_data = atlas_maps.get_fdata().astype(int)
+    tian_mask = tian_resampled.get_fdata() > 0
+    new_region_idx = int(np.max(atlas_data)) + 1
+
+    # Preserve existing Yeo region assignments and fill only non-labeled voxels.
+    merged_data = atlas_data.copy()
+    merged_data[(atlas_data == 0) & tian_mask] = new_region_idx
+
+    merged_labels = list(atlas_labels) + ["Subcortical"]
+    merged_maps = image.new_img_like(atlas_maps, merged_data.astype(np.int32))
+
+    return merged_maps, merged_labels
+
+
 def fetch_yeo7(
     atlas_name=None,
     atlas_dir=None,
@@ -63,12 +91,14 @@ def fetch_yeo7(
         if maps_path is None:
             raise KeyError("Maps not found in search candidates ('maps', 'thick_7', 'thin_7').")
 
+    yeo7_maps = image.load_img(maps_path)
+    yeo7_maps = image.index_img(yeo7_maps, 0)
+    yeo7_maps, labels = _append_tian_subcortical_region(yeo7_maps, labels)
+
     yeo7_atlas = {"filename": datasets.atlas.get_dataset_dir("yeo_2011"),
-                    "maps": image.load_img(maps_path),
+                    "maps": yeo7_maps,
                     "labels": labels,
-                    "description": "Yeo 7 atlas from nilearn"}
-    # Remove 4th dimension in the maps
-    yeo7_atlas["maps"] = image.index_img(yeo7_atlas["maps"], 0)
+                    "description": "Yeo 7 atlas from nilearn + Tian S1 Subcortical"}
     return yeo7_atlas
 
 
@@ -101,10 +131,11 @@ def fetch_yeo17(
             raise KeyError("Maps not found in search candidates ('maps', 'thick_17', 'thin_17').")
 
     maps = image.load_img(maps_path)
+    maps = image.index_img(maps, 0)
+    maps, labels = _append_tian_subcortical_region(maps, labels)
+
     yeo17_atlas = {"filename": datasets.atlas.get_dataset_dir("yeo_2011"),
                     "maps": maps,
                     "labels": labels,
-                    "description": "Yeo 17 atlas from nilearn"}
-    # Remove 4th dimension in the maps
-    yeo17_atlas["maps"] = image.index_img(yeo17_atlas["maps"], 0)
+                    "description": "Yeo 17 atlas from nilearn + Tian S1 Subcortical"}
     return yeo17_atlas
