@@ -11,6 +11,7 @@ from statsmodels.stats.multitest import multipletests
 from compneuro_tools.atlases import fetch_xtract
 from compneuro_tools.atlases.yeo import fetch_yeo7, fetch_yeo17
 from compneuro_tools.atlases.cole_anticevic import fetch_cole_anticevic
+from compneuro_tools.atlases.tian import fetch_tian
 
 
 ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harvard_oxford,
@@ -36,6 +37,30 @@ ATLAS_DICT = {"HarvardOxfordCortical":    {"function": datasets.fetch_atlas_harv
                                             "dir": None},
               "ColeAnticevicSubcortical": {"function": fetch_cole_anticevic,
                                             "name": None,
+                                            "dir": None},
+              "Subcortical_S1":          {"function": fetch_tian,
+                                            "name": "Subcortical_S1",
+                                            "dir": None},
+              "Subcortical_S2":          {"function": fetch_tian,
+                                            "name": "Subcortical_S2",
+                                            "dir": None},
+              "Subcortical_S3":          {"function": fetch_tian,
+                                            "name": "Subcortical_S3",
+                                            "dir": None},
+              "Subcortical_S4":          {"function": fetch_tian,
+                                            "name": "Subcortical_S4",
+                                            "dir": None},
+              "Cortical_S1":             {"function": fetch_tian,
+                                            "name": "Cortical_S1",
+                                            "dir": None},
+              "Cortical_S2":             {"function": fetch_tian,
+                                            "name": "Cortical_S2",
+                                            "dir": None},
+              "Cortical_S3":             {"function": fetch_tian,
+                                            "name": "Cortical_S3",
+                                            "dir": None},
+              "Cortical_S4":             {"function": fetch_tian,
+                                            "name": "Cortical_S4",
                                             "dir": None},
 }
 
