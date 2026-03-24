@@ -6,6 +6,7 @@ import numpy as np
 from nilearn import image
 from nilearn.maskers import NiftiMasker
 from scipy.stats import t, f, norm
+from scipy.special import ndtri
 
 
 # Python version of Ibai Diez's GLM fitting script. Thanks Ibai for your MATLAB code c:
@@ -168,23 +169,25 @@ def fit_glm(mask_img,
             contrast = contrasts[i, :]
 
             # Compute Standard Error and t Statistic
-            SE = np.sqrt(MSE * (contrast @ np.linalg.inv(X.T @ X) @ contrast.T))
+            eps = np.finfo(float).eps
+            var_beta = (contrast @ np.linalg.inv(X.T @ X) @ contrast.T)
+            SE = np.sqrt((MSE + eps) * var_beta)
             T = (contrast @ betas) / SE
             T_im = masker.inverse_transform(T)
 
-            # Uncorrected p-values
-            pvals = 2 * (1 - t.cdf(np.abs(T), df))
-            pval_array = np.zeros_like(mask_2d)
-            pval_array[mask_2d > 0] = 1 - pvals
+            # Log p-values (Uncorrected)
+            logp = t.logsf(np.abs(T), df)
+            pval_array = np.exp(logp) # Convert log p-values to p-values
             pval_array_pos = pval_array * np.where(T > 0, 1, 0)
             pval_array_neg = pval_array * np.where(T < 0, 1, 0)
             pval_im_pos = masker.inverse_transform(pval_array_pos)
             pval_im_neg = masker.inverse_transform(pval_array_neg)
 
             # Z-Stat
-            Z = norm.ppf(1 - (pvals/2))
-            Z = np.where(T > 0, Z, -Z)
+            Z = -ndtri(np.exp(logp))  # Convert log p-values to Z-scores, using the inverse of the normal CDF
+            Z = np.where(T > 0, Z, -Z)  # Assign the correct sign to the Z-scores
             Z_array = Z * mask_2d
+            Z_array = np.clip(Z_array, -50, 50)  # Clip Z-scores to avoid infinite values
             Z_im = masker.inverse_transform(Z_array)
 
             # Betas
