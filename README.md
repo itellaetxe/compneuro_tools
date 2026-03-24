@@ -8,7 +8,7 @@
 My personal collection of simple yet useful ***"brain gardening tools"*** for my PhD works in [CompNeuroBilbaoLab](https://www.compneurobilbao.eus)!
 
 ## Requirements
-I use Linux. Tested on Debian and on WSL2 Debian.
+I use Linux. Tested on Arch, Debian and on WSL2 Debian.
 
 - Python 3.11 or higher
 - FSL 6.0 or higher
